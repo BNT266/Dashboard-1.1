@@ -438,7 +438,7 @@ const ChartManager = {
                     legend: { display: type === 'pie', position: 'bottom' },
                     tooltip: {
                         callbacks: {
-                            label: ctx => ` ${ctx.raw} Ereignisse`
+                            label: ctx => ` {ctx.raw} Ereignisse`
                         }
                     }
                 },
@@ -604,7 +604,7 @@ class SecurityAnalytics {
                 title_en: 'Immediate Security Measures',
                 action: 'Sicherheitsaudit durchführen und Notfallplan aktivieren',
                 action_en: 'Conduct a security audit and activate emergency response plans',
-                reason: `Risiko-Score von ${risk.score}% erfordert schnelles Handeln`
+                reason: `Risiko-Score von {risk.score}% erfordert schnelles Handeln`
             });
         }
 
@@ -614,8 +614,8 @@ class SecurityAnalytics {
                 icon: '🔒',
                 title: 'Kritische Ereignisarten adressieren',
                 title_en: 'Address Critical Event Types',
-                action: `Präventionsmaßnahmen für ${risk.criticalTypes[0].key} verstärken`,
-                action_en: `Strengthen preventive measures for ${risk.criticalTypes[0].key}`,
+                action: `Präventionsmaßnahmen für {risk.criticalTypes[0].key} verstärken`,
+                action_en: `Strengthen preventive measures for {risk.criticalTypes[0].key}`,
                 reason: `${risk.criticalTypes[0].count} kritische Ereignisse registriert`
             });
         }
@@ -657,7 +657,7 @@ class SecurityAnalytics {
         trends.push({
             metric: 'Ereignis-Volumen',
             current: `${this.data.length} Events`,
-            forecast: `Nächster Monat: ${monthlyGrowth}`,
+            forecast: `Nächster Monat: {monthlyGrowth}`,
             confidence: '75%'
         });
 
@@ -780,18 +780,18 @@ class SecurityAnalytics {
 
         container.innerHTML = `
             <div class="insight-item risk-${risk.class}">
-                <div class="insight-value">Risiko-Level: ${risk.level} (${risk.score}%)</div>
+                <div class="insight-value">Risiko-Level: {risk.level} (${risk.score}%)</div>
                 <div class="insight-trend">
-                    ${risk.highRiskEvents} kritische Ereignisse von ${risk.totalEvents} gesamt
+                    {risk.highRiskEvents} kritische Ereignisse von {risk.totalEvents} gesamt
                 </div>
                 <div class="insight-trend">
                     Basis: gewichtete Häufigkeit nach Ereignisart (Einbruch, Diebstahl, Vandalismus etc.).
                 </div>
             </div>
-            ${risk.criticalTypes.length > 0 ? `
+            {risk.criticalTypes.length > 0 ? `
                 <div class="insight-item">
                     <div class="insight-value">⚠️ Kritischster Typ:</div>
-                    <div class="insight-trend">${risk.criticalTypes[0].key} (${risk.criticalTypes[0].count}x)</div>
+                    <div class="insight-trend">{risk.criticalTypes[0].key} (${risk.criticalTypes[0].count}x)</div>
                 </div>
             ` : ''}
         `;
@@ -814,8 +814,8 @@ class SecurityAnalytics {
         } else {
             html += patterns.slice(0, 2).map(pattern => `
                 <div class="insight-item">
-                    <div class="insight-value">${pattern.severity === 'high' ? '🔴' : '🟡'} ${pattern.title}</div>
-                    <div class="insight-trend">${pattern.description}</div>
+                    <div class="insight-value">{pattern.severity === 'high' ? '🔴' : '🟡'} {pattern.title}</div>
+                    <div class="insight-trend">{pattern.description}</div>
                 </div>
             `).join('');
         }
@@ -830,19 +830,19 @@ class SecurityAnalytics {
                 <div class="insight-item">
                     <div class="insight-value">Bereichszuordnung (Security / FM / SHE)</div>
                     <div class="insight-trend">
-                        Dominanter Bereich: <strong>${top.domain}</strong>
-                        (${top.count} Events, ${top.share}% Anteil).
+                        Dominanter Bereich: <strong>{top.domain}</strong>
+                        (${top.count} Events, {top.share}% Anteil).
                     </div>
                     <div class="insight-trend">
-                        Security: ${sec ? `${sec.count} (${sec.share}%)` : '0 (0%)'} |
-                        FM: ${fm ? `${fm.count} (${fm.share}%)` : '0 (0%)'} |
-                        SHE: ${she ? `${she.count} (${she.share}%)` : '0 (0%)'}
+                        Security: {sec ? `${sec.count} (${sec.share}%)` : '0 (0%)'} |
+                        FM: {fm ? `${fm.count} (${fm.share}%)` : '0 (0%)'} |
+                        SHE: {she ? `${she.count} (${she.share}%)` : '0 (0%)'}
                     </div>
                     <div class="insight-trend">
                         Risikobeitrag (Punkte): 
-                        Security ${sec ? sec.riskScore : 0}, 
-                        FM ${fm ? fm.riskScore : 0}, 
-                        SHE ${she ? she.riskScore : 0}.
+                        Security {sec ? sec.riskScore : 0}, 
+                        FM {fm ? fm.riskScore : 0}, 
+                        SHE {she ? she.riskScore : 0}.
                     </div>
                 </div>
             `;
@@ -861,8 +861,8 @@ class SecurityAnalytics {
             const action = lang === 'de' ? rec.action : (rec.action_en || rec.action);
             return `
                 <div class="insight-item">
-                    <div class="insight-value">${rec.icon} ${title}</div>
-                    <div class="insight-trend">${action}</div>
+                    <div class="insight-value">{rec.icon} {title}</div>
+                    <div class="insight-trend">{action}</div>
                 </div>
             `;
         }).join('');
@@ -875,9 +875,9 @@ class SecurityAnalytics {
 
         let html = trends.slice(0, 3).map(trend => `
             <div class="insight-item">
-                <div class="insight-value">${trend.metric}: ${trend.current}</div>
+                <div class="insight-value">{trend.metric}: {trend.current}</div>
                 <div class="insight-trend">
-                    ${trend.forecast} (${trend.confidence} Konfidenz)
+                    {trend.forecast} (${trend.confidence} Konfidenz)
                 </div>
             </div>
         `).join('');
@@ -887,16 +887,16 @@ class SecurityAnalytics {
                 <div class="insight-item">
                     <div class="insight-value">Zeitliche Muster</div>
                     <div class="insight-trend">
-                        Häufigste Zeitspanne: <strong>${timePatterns.topHourBucket.range} Uhr</strong>
+                        Häufigste Zeitspanne: <strong>{timePatterns.topHourBucket.range} Uhr</strong>
                         (${timePatterns.topHourBucket.count} Ereignisse).
                     </div>
                     <div class="insight-trend">
-                        Häufigster Wochentag: <strong>${timePatterns.topWeekday.name}</strong>
+                        Häufigster Wochentag: <strong>{timePatterns.topWeekday.name}</strong>
                         (${timePatterns.topWeekday.count} Ereignisse).
                     </div>
                     <div class="insight-trend">
-                        Verteilung: <strong>${timePatterns.weekendVsWeekday.weekdayShare}%</strong> Werktag vs.
-                        <strong>${timePatterns.weekendVsWeekday.weekendShare}%</strong> Wochenende.
+                        Verteilung: <strong>{timePatterns.weekendVsWeekday.weekdayShare}%</strong> Werktag vs.
+                        <strong>{timePatterns.weekendVsWeekday.weekendShare}%</strong> Wochenende.
                     </div>
                 </div>
             `;
@@ -935,7 +935,7 @@ const ThemeManager = {
             label.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
         }
 
-        console.log(`🎨 Theme changed to: ${theme}`);
+        console.log(`🎨 Theme changed to: {theme}`);
     }
 };
 
@@ -990,7 +990,7 @@ const RiskConfigManager = {
             const currentWeight = CONFIG.riskWeights[type] ?? 3;
             return `
                 <div class="risk-config-row">
-                    <div class="risk-config-label" title="${type}">${type}</div>
+                    <div class="risk-config-label" title="${type}">{type}</div>
                     <input
                         class="risk-config-input"
                         type="number"
@@ -1084,10 +1084,10 @@ const DrilldownManager = {
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${dateTime}</td>
-                <td>${land}</td>
-                <td>${site}</td>
-                <td>${type}</td>
+                <td>{dateTime}</td>
+                <td>{land}</td>
+                <td>{site}</td>
+                <td>{type}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -1123,8 +1123,8 @@ const DrilldownManager = {
             const tr = document.createElement('tr');
             tr.dataset.country = item.key || '';
             tr.innerHTML = `
-                <td>${item.key || '(leer)'}</td>
-                <td>${item.count}</td>
+                <td>{item.key || '(leer)'}</td>
+                <td>{item.count}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -1168,9 +1168,9 @@ const DrilldownManager = {
             const tr = document.createElement('tr');
             tr.dataset.site = item.site;
             tr.innerHTML = `
-                <td>${item.site}</td>
-                <td>${item.country}</td>
-                <td>${item.count}</td>
+                <td>{item.site}</td>
+                <td>{item.country}</td>
+                <td>{item.count}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -1202,8 +1202,8 @@ const DrilldownManager = {
             const tr = document.createElement('tr');
             tr.dataset.type = item.key || '';
             tr.innerHTML = `
-                <td>${item.key || '(leer)'}</td>
-                <td>${item.count}</td>
+                <td>{item.key || '(leer)'}</td>
+                <td>{item.count}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -1221,7 +1221,7 @@ const DrilldownManager = {
         );
         this.renderEventTable(events);
         this.showModal(
-            `Ereignisse für Land: ${country}`,
+            `Ereignisse für Land: {country}`,
             `${events.length} Ereignisse`
         );
     },
@@ -1233,7 +1233,7 @@ const DrilldownManager = {
         );
         this.renderEventTable(events);
         this.showModal(
-            `Ereignisse für Liegenschaft: ${site}`,
+            `Ereignisse für Liegenschaft: {site}`,
             `${events.length} Ereignisse`
         );
     },
@@ -1245,7 +1245,7 @@ const DrilldownManager = {
         );
         this.renderEventTable(events);
         this.showModal(
-            `Ereignisse für Ereignisart: ${type}`,
+            `Ereignisse für Ereignisart: {type}`,
             `${events.length} Ereignisse`
         );
     }
@@ -1280,7 +1280,7 @@ const FilterManager = {
 
         this.updateStatus();
         RenderManager.renderAll();
-        console.log(`🔍 Filter applied: ${DashboardState.currentData.length}/${DashboardState.allData.length} records`);
+        console.log(`🔍 Filter applied: {DashboardState.currentData.length}/${DashboardState.allData.length} records`);
     },
 
     reset() {
@@ -1298,22 +1298,22 @@ const FilterManager = {
         const site = document.getElementById('filterSite').value;
         const type = document.getElementById('filterType').value;
 
-        if (country !== '__ALL__') activeFilters.push(`Land: ${country}`);
-        if (site !== '__ALL__') activeFilters.push(`Liegenschaft: ${site}`);
-        if (type !== '__ALL__') activeFilters.push(`Ereignisart: ${type}`);
+        if (country !== '__ALL__') activeFilters.push(`Land: {country}`);
+        if (site !== '__ALL__') activeFilters.push(`Liegenschaft: {site}`);
+        if (type !== '__ALL__') activeFilters.push(`Ereignisart: {type}`);
 
         let text;
         if (activeFilters.length === 0) {
             text = 'Keine Filter aktiv (zeige alle Datensätze)';
             status.className = 'status';
         } else {
-            text = `Aktive Filter: ${activeFilters.join(' | ')}`;
+            text = `Aktive Filter: {activeFilters.join(' | ')}`;
             status.className = 'status active-filters';
         }
 
         const total = DashboardState.allData.length;
         const current = DashboardState.currentData.length;
-        text += `  |  Zeige ${current} von ${total} Datensätzen`;
+        text += `  |  Zeige {current} von {total} Datensätzen`;
 
         status.textContent = text;
     },
@@ -1322,9 +1322,9 @@ const FilterManager = {
         const select = document.getElementById(selectId);
         const currentValue = select.value;
 
-        select.innerHTML = `<option value="__ALL__">${placeholder}</option>`;
+        select.innerHTML = `<option value="__ALL__">{placeholder}</option>`;
         values.forEach(value => {
-            select.innerHTML += `<option value="${value}">${value}</option>`;
+            select.innerHTML += `<option value="${value}">{value}</option>`;
         });
 
         if (values.includes(currentValue)) {
@@ -1413,8 +1413,8 @@ const RenderManager = {
         const countryTbody = document.querySelector('#tableByCountry tbody');
         countryTbody.innerHTML = byCountry.map(item =>
             `<tr data-country="${item.key || ''}">
-                <td>${item.key || '(leer)'}</td>
-                <td>${item.count}</td>
+                <td>{item.key || '(leer)'}</td>
+                <td>{item.count}</td>
             </tr>`
         ).join('');
 
@@ -1436,17 +1436,17 @@ const RenderManager = {
         const siteTbody = document.querySelector('#tableBySite tbody');
         siteTbody.innerHTML = siteArray.map(item =>
             `<tr data-site="${item.site}">
-                <td>${item.site}</td>
-                <td>${item.country}</td>
-                <td>${item.count}</td>
+                <td>{item.site}</td>
+                <td>{item.country}</td>
+                <td>{item.count}</td>
             </tr>`
         ).join('');
 
         const typeTbody = document.querySelector('#tableByType tbody');
         typeTbody.innerHTML = byType.map(item =>
             `<tr data-type="${item.key || ''}">
-                <td>${item.key || '(leer)'}</td>
-                <td>${item.count}</td>
+                <td>{item.key || '(leer)'}</td>
+                <td>{item.count}</td>
             </tr>`
         ).join('');
 
@@ -1551,12 +1551,12 @@ const DataManager = {
         this.updateUI('testdata');
         RenderManager.renderAll();
 
-        console.log(`✅ Test data loaded: ${DashboardState.allData.length} records`);
+        console.log(`✅ Test data loaded: {DashboardState.allData.length} records`);
         UI.showToast('Testdaten wurden geladen (Demo-Modus).', 'info');
     },
 
     async loadCSVFile(file) {
-        console.log(`📁 Loading CSV file: ${file.name}`);
+        console.log(`📁 Loading CSV file: {file.name}`);
 
         try {
             const text = await file.text();
@@ -1574,7 +1574,7 @@ const DataManager = {
             this.updateUI('csv', file.name);
             RenderManager.renderAll();
 
-            console.log(`✅ CSV file loaded: ${DashboardState.allData.length} records`);
+            console.log(`✅ CSV file loaded: {DashboardState.allData.length} records`);
             UI.showToast(`CSV-Datei "${file.name}" geladen.`, 'success');
 
             if (!DashboardState.headerMap.country ||
@@ -1590,7 +1590,7 @@ const DataManager = {
         } catch (error) {
             console.error('CSV loading error:', error);
             const status = document.getElementById('fileStatus');
-            status.textContent = `Fehler beim Lesen der Datei: ${error.message}`;
+            status.textContent = `Fehler beim Lesen der Datei: {error.message}`;
             status.className = 'status error';
             UI.showToast('Fehler beim Laden der CSV-Datei: ' + error.message, 'error');
         }
@@ -1608,7 +1608,7 @@ const DataManager = {
             fileStatus.className = 'status';
         } else if (mode === 'csv') {
             modeIndicator.textContent = 'Modus: CSV-Datei';
-            fileStatus.textContent = `Datei "${filename}" geladen. Datensätze: ${DashboardState.allData.length}.`;
+            fileStatus.textContent = `Datei "${filename}" geladen. Datensätze: {DashboardState.allData.length}.`;
             fileStatus.className = 'status';
         } else {
             modeIndicator.textContent = 'Modus: Keine Daten';
