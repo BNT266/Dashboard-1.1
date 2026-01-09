@@ -476,8 +476,6 @@ const ChartManager = {
                 if (option) {
                     select.value = label;
                     FilterManager.apply();
-                    // Optional: direkt Detail anzeigen
-                    // DrilldownManager.showEventsForCountry(label);
                 }
             }
 
@@ -489,8 +487,6 @@ const ChartManager = {
                 if (option) {
                     select.value = label;
                     FilterManager.apply();
-                    // Optional: direkt Detail anzeigen
-                    // DrilldownManager.showEventsForSite(label);
                 }
             }
 
@@ -502,8 +498,6 @@ const ChartManager = {
                 if (option) {
                     select.value = label;
                     FilterManager.apply();
-                    // Optional: direkt Detail anzeigen
-                    // DrilldownManager.showEventsForType(label);
                 }
             }
         };
@@ -1722,7 +1716,6 @@ const DrilldownManager = {
         modal.style.display = 'none';
     },
 
-    // Hilfsfunktion: Rohdaten-Tabelle rendern
     renderEventTable(events) {
         const thead = document.getElementById('drilldownThead');
         const tbody = document.getElementById('drilldownTbody');
@@ -1766,7 +1759,6 @@ const DrilldownManager = {
         });
     },
 
-    // KPI: Gesamtzahl Ereignisse – alle gefilterten Events
     showTotalEvents() {
         const events = DashboardState.currentData;
         this.renderEventTable(events);
@@ -1776,7 +1768,6 @@ const DrilldownManager = {
         );
     },
 
-    // KPI: Länder – Liste aller Länder mit Counts
     showCountriesOverview() {
         const h = DashboardState.headerMap;
         const thead = document.getElementById('drilldownThead');
@@ -1810,7 +1801,6 @@ const DrilldownManager = {
         );
     },
 
-    // KPI: Liegenschaften – Übersicht
     showSitesOverview() {
         const h = DashboardState.headerMap;
         const tbody = document.getElementById('drilldownTbody');
@@ -1857,7 +1847,6 @@ const DrilldownManager = {
         );
     },
 
-    // KPI: Ereignisarten – Übersicht
     showTypesOverview() {
         const h = DashboardState.headerMap;
         const thead = document.getElementById('drilldownThead');
@@ -1891,7 +1880,6 @@ const DrilldownManager = {
         );
     },
 
-    // Drilldown aus Tabelle: alle Events für ein Land
     showEventsForCountry(country) {
         const h = DashboardState.headerMap;
         const events = DashboardState.currentData.filter(row =>
@@ -1904,7 +1892,6 @@ const DrilldownManager = {
         );
     },
 
-    // Drilldown aus Tabelle: alle Events für eine Liegenschaft
     showEventsForSite(site) {
         const h = DashboardState.headerMap;
         const events = DashboardState.currentData.filter(row =>
@@ -1913,8 +1900,10 @@ const DrilldownManager = {
         this.renderEventTable(events);
         this.showModal(
             `Ereignisse für Liegenschaft: ${site}`,
-            `${events
-               // Drilldown aus Tabelle: alle Events für eine Ereignisart
+            `${events.length} Ereignisse`
+        );
+    },
+
     showEventsForType(type) {
         const h = DashboardState.headerMap;
         const events = DashboardState.currentData.filter(row =>
@@ -2087,7 +2076,6 @@ const RenderManager = {
         const byType = Utils.groupAndCount(DashboardState.currentData, row =>
             DashboardState.headerMap.type ? row[DashboardState.headerMap.type] : '');
 
-        // Länder-Tabelle mit Drilldown-Attribut
         const countryTbody = document.querySelector('#tableByCountry tbody');
         countryTbody.innerHTML = byCountry.map(item =>
             `<tr data-country="${item.key || ''}">
@@ -2096,7 +2084,6 @@ const RenderManager = {
             </tr>`
         ).join('');
 
-        // Liegenschaften-Tabelle (Site + Land)
         const siteMap = new Map();
         DashboardState.currentData.forEach(row => {
             const site = DashboardState.headerMap.site ? row[DashboardState.headerMap.site] : '';
@@ -2121,7 +2108,6 @@ const RenderManager = {
             </tr>`
         ).join('');
 
-        // Ereignisarten-Tabelle
         const typeTbody = document.querySelector('#tableByType tbody');
         typeTbody.innerHTML = byType.map(item =>
             `<tr data-type="${item.key || ''}">
@@ -2130,7 +2116,6 @@ const RenderManager = {
             </tr>`
         ).join('');
 
-        // Tabellen-Drilldown-Events (delegiert)
         countryTbody.onclick = (e) => {
             const row = e.target.closest('tr');
             if (!row) return;
@@ -2341,7 +2326,6 @@ const Dashboard = {
             i18n.set(langSelect.value || 'de');
         }
 
-        // KPI-Cards Drilldown
         document.querySelectorAll('.card-grid .card').forEach(card => {
             card.addEventListener('click', () => {
                 const kpi = card.dataset.kpi;
@@ -2363,7 +2347,6 @@ const Dashboard = {
             });
         });
 
-        // Modal schließen
         const modal = document.getElementById('drilldownModal');
         if (modal) {
             const backdrop = modal.querySelector('.modal-backdrop');
