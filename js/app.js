@@ -1,2274 +1,1563 @@
-/* VOLLSTÄNDIGE, BEREINIGTE app.js – inkl. interaktiver Charts & Risiko-Konfiguration + DRILLDOWN */
+/* =============================================
+   SECURITY EVENT DASHBOARD - app.js
+   TEIL 1 von 5: Grundlagen
+   ============================================= */
 
-console.log('🚀 Security Dashboard startet...');
+(function() {
+    'use strict';
 
-// =============================================
-// GLOBAL STATE
-// =============================================
-const DashboardState = {
-    allData: [],
-    currentData: [],
-    headerMap: {},
-    chartInstances: {}
-};
+    console.log('Security Dashboard wird geladen...');
 
-// =============================================
-// CONFIGURATION
-// =============================================
-const CONFIG = {
-    riskWeights: {
-        'Diebstahl': 9,
-        'Verdächtige Person': 7,
-        'Zutrittsverletzung': 6,
-        'Alarmanlage ausgelöst': 5,
-        'Vandalismus': 8,
-        'Einbruch': 10,
-        'Brandschutz': 9
-    },
-    chartColors: [
-        '#00a37a', '#006b4e', '#4caf50', '#8bc34a',
-        '#cddc39', '#ffc107', '#ff9800', '#ff5722'
-    ]
-};
+    // ==========================================
+    // GLOBALER STATE
+    // ==========================================
+    window.AppState = {
+        allData: [],
+        currentData: [],
+        headerMap: {},
+        charts: {},
+        initialized: false
+    };
 
-// =============================================
-// i18n – einfache Sprachverwaltung (DE/EN)
-// =============================================
-const i18n = {
-    current: 'de',
+    // ==========================================
+    // KONFIGURATION
+    // ==========================================
+    window.CONFIG = {
+        riskWeights: {
+            'Diebstahl': 9,
+            'Verdaechtige Person': 7,
+            'Zutrittsverletzung': 6,
+            'Alarmanlage ausgeloest': 5,
+            'Vandalismus': 8,
+            'Einbruch': 10,
+            'Brandschutz': 9
+        },
+        chartColors: [
+            '#00a37a', '#006b4e', '#4caf50', '#8bc34a',
+            '#cddc39', '#ffc107', '#ff9800', '#ff5722'
+        ],
+        maxChartItems: 6
+    };
 
-    set(lang) {
-        this.current = ['de', 'en'].includes(lang) ? lang : 'de';
-        console.log('🌐 Report language set to:', this.current);
-    },
+    // ==========================================
+    // SPRACHEN (i18n)
+    // ==========================================
+    window.i18n = {
+        current: 'de',
 
-    t(key, vars = {}) {
-        const lang = this.current;
-        const dict = this.strings[key]?.[lang] || this.strings[key]?.de || '';
+        set: function(lang) {
+            this.current = (lang === 'de' || lang === 'en') ? lang : 'de';
+            console.log('Sprache:', this.current);
+        },
 
-        return dict.replace(/\{\{(\w+)\}\}/g, (_, v) => {
-            return vars[v] !== undefined ? vars[v] : '';
-        });
-    },
-
-    strings: {
-        pdf_title: {
-            de: 'SECURITY EVENT DASHBOARD',
-            en: 'SECURITY EVENT DASHBOARD'
-        },
-        pdf_subtitle: {
-            de: 'Executive Summary Report',
-            en: 'Executive Summary Report'
-        },
-        pdf_created_at: {
-            de: 'Erstellt: {{date}}',
-            en: 'Generated: {{date}}'
-        },
-        section_executive_summary: {
-            de: 'Executive Summary',
-            en: 'Executive Summary'
-        },
-        section_ai_insights: {
-            de: 'AI Executive Insights',
-            en: 'AI Executive Insights'
-        },
-        section_visual_analytics: {
-            de: 'Visual Analytics',
-            en: 'Visual Analytics'
-        },
-        section_aggregated_overview: {
-            de: 'Aggregierte Ereignisübersicht',
-            en: 'Aggregated Event Overview'
-        },
-        section_detailed_list: {
-            de: 'Detallierte Ereignisliste (erste {{count}} Events)',
-            en: 'Detailed Event List (first {{count}} events)'
-        },
-        section_risk_and_domain: {
-            de: 'Risikoprofil & Bereichszuordnung',
-            en: 'Risk Profile & Domain Allocation'
-        },
-        section_time_and_trends: {
-            de: 'Zeitliche Muster & Trendprognose',
-            en: 'Temporal Patterns & Trend Forecast'
-        },
-        section_actions: {
-            de: 'Empfohlene Maßnahmen (KI-gestützt)',
-            en: 'Recommended Actions (AI-driven)'
-        },
-        section_domain_focus: {
-            de: 'Schwerpunkte nach Bereich',
-            en: 'Focus by Domain'
-        },
-        desc_ai_insights: {
-            de: 'Zusammenfassung der KI-gestützten Risikoanalyse, Bereichszuordnung und Zeit-/Trendmuster.',
-            en: 'Summary of AI-based risk analysis, domain allocation, and time/trend patterns.'
-        },
-        desc_visual_analytics: {
-            de: 'Verteilung der Ereignisse über Länder, Liegenschaften, Ereignisarten und Bereiche.',
-            en: 'Distribution of events across countries, sites, event types, and domains.'
-        },
-        key_facts_line: {
-            de: 'Ereignisse gesamt: {{events}}  |  Länder: {{countries}}  |  Liegenschaften: {{sites}}  |  Ereignisarten: {{types}}',
-            en: 'Total events: {{events}}  |  Countries: {{countries}}  |  Sites: {{sites}}  |  Event types: {{types}}'
-        },
-        table_country_header: {
-            de: 'Land',
-            en: 'Country'
-        },
-        table_site_header: {
-            de: 'Liegenschaft',
-            en: 'Site'
-        },
-        table_type_header: {
-            de: 'Ereignisart',
-            en: 'Event Type'
-        },
-        table_count_header: {
-            de: 'Anzahl',
-            en: 'Count'
-        },
-        chart_countries_title: {
-            de: 'Ereignisse nach Ländern',
-            en: 'Events by Country'
-        },
-        chart_sites_title: {
-            de: 'Ereignisse nach Liegenschaften',
-            en: 'Events by Site'
-        },
-        chart_types_title: {
-            de: 'Ereignisse nach Ereignisarten',
-            en: 'Events by Type'
-        },
-        chart_domains_title: {
-            de: 'Bereichsverteilung (Security / FM / SHE)',
-            en: 'Domain Distribution (Security / FM / SHE)'
-        },
-        footer_left: {
-            de: 'Security Events Dashboard – Executive Report',
-            en: 'Security Events Dashboard – Executive Report'
-        },
-        footer_page: {
-            de: 'Seite {{page}}',
-            en: 'Page {{page}}'
-        },
-        risk_intro_high: {
-            de: 'Das Gesamtrisiko wird aktuell als hoch ({{score}}% von 100%) eingestuft.',
-            en: 'The overall risk is currently assessed as high ({{score}}% out of 100%).'
-        },
-        risk_intro_medium: {
-            de: 'Das Gesamtrisiko wird aktuell als mittel ({{score}}% von 100%) eingestuft.',
-            en: 'The overall risk is currently assessed as medium ({{score}}% out of 100%).'
-        },
-        risk_intro_low: {
-            de: 'Das Gesamtrisiko wird aktuell als niedrig ({{score}}% von 100%) eingestuft.',
-            en: 'The overall risk is currently assessed as low ({{score}}% out of 100%).'
-        },
-        risk_detail_high: {
-            de: 'Die Anzahl und Gewichtung kritischer Ereignisse ist deutlich erhöht; {{count}} Vorfälle gelten als sicherheitskritisch.',
-            en: 'The number and weighting of critical incidents is significantly elevated; {{count}} incidents are classified as safety-critical.'
-        },
-        risk_detail_medium: {
-            de: 'Es liegt ein mittleres Risikoprofil vor, das kontinuierliches Monitoring und punktuelle Maßnahmen erfordert.',
-            en: 'The risk profile is moderate and requires continuous monitoring and targeted measures.'
-        },
-        risk_detail_low: {
-            de: 'Das aktuelle Risikoprofil ist eher niedrig, sollte jedoch weiterhin beobachtet werden.',
-            en: 'The current risk profile is rather low but should continue to be monitored.'
-        },
-        risk_critical_type: {
-            de: 'Die Ereignisart "{{type}}" trägt mit {{count}} Vorfällen am stärksten zum Gesamtrisiko bei.',
-            en: 'The event type "{{type}}" contributes most to the overall risk with {{count}} incidents.'
-        },
-        domain_main_line: {
-            de: 'Die meisten Ereignisse entfallen auf den Bereich {{domain}} ({{count}} Vorfälle, {{share}}% Anteil).',
-            en: 'Most events fall within the {{domain}} domain ({{count}} incidents, {{share}}% share).'
-        },
-        domain_distribution_line: {
-            de: 'Verteilung nach Bereichen: Security {{secCount}} ({{secShare}}%), FM {{fmCount}} ({{fmShare}}%), SHE {{sheCount}} ({{sheShare}}%).',
-            en: 'Distribution by domain: Security {{secCount}} ({{secShare}}%), FM {{fmCount}} ({{fmShare}}%), SHE {{sheCount}} ({{sheShare}}%).'
-        },
-        domain_risk_focus: {
-            de: 'Hinsichtlich Risikopunkten ist der Bereich {{domain}} am stärksten gewichtet (ca. {{score}} Punkte).',
-            en: 'In terms of risk points, the {{domain}} domain is weighted the highest (approx. {{score}} points).'
-        },
-        trend_risk_up: {
-            de: 'Das Risiko wird voraussichtlich weiter ansteigen.',
-            en: 'Risk levels are expected to increase further.'
-        },
-        trend_risk_down: {
-            de: 'Das Risiko entwickelt sich tendenziell rückläufig.',
-            en: 'Risk levels are expected to decline.'
-        },
-        trend_risk_stable: {
-            de: 'Das Risiko wird als weitgehend stabil eingeschätzt.',
-            en: 'Risk levels are expected to remain broadly stable.'
-        },
-        trend_risk_sentence: {
-            de: 'Für das Gesamtrisiko wird eine {{trend}} Entwicklung mit einer geschätzten Konfidenz von {{confidence}} erwartet.',
-            en: 'For overall risk, a {{trend}} development is expected with an estimated confidence level of {{confidence}}.'
-        },
-        trend_volume_sentence: {
-            de: 'Das Ereignisvolumen wird für den nächsten Zeitraum mit {{forecast}} prognostiziert (Konfidenz {{confidence}}).',
-            en: 'Event volume for the next period is forecast at {{forecast}} (confidence {{confidence}}).'
-        },
-        time_bucket_line: {
-            de: 'Zeitlich häufen sich die Ereignisse insbesondere im Zeitraum {{range}} Uhr ({{count}} Vorfälle).',
-            en: 'Events cluster particularly in the time window {{range}} hours ({{count}} incidents).'
-        },
-        time_weekday_line: {
-            de: 'Der auffälligste Wochentag ist {{weekday}} mit {{count}} Ereignissen.',
-            en: 'The most prominent weekday is {{weekday}} with {{count}} incidents.'
-        },
-        time_weekend_share: {
-            de: 'Rund {{weekdayShare}}% der Vorfälle treten an Werktagen auf, {{weekendShare}}% am Wochenende.',
-            en: 'Approximately {{weekdayShare}}% of incidents occur on weekdays and {{weekendShare}}% on weekends.'
-        },
-        actions_bullet_prefix: {
-            de: '• ',
-            en: '• '
-        },
-        toast_pdf_start: {
-            de: 'Professioneller PDF-Report wird erstellt...',
-            en: 'Generating professional PDF report...'
-        },
-        toast_pdf_success: {
-            de: 'Executive PDF-Report erfolgreich erstellt: {{file}}',
-            en: 'Executive PDF report successfully created: {{file}}'
-        },
-        toast_pdf_error: {
-            de: 'Fehler beim PDF-Export: {{error}}',
-            en: 'Error during PDF export: {{error}}'
-        },
-        pdf_filename: {
-            de: 'Security-Executive-Report-{{date}}.pdf',
-            en: 'Security-Executive-Report-{{date}}.pdf'
-        }
-    }
-};
-
-// =============================================
-// TEST DATA
-// =============================================
-const TestData = {
-    csv: `Land;Liegenschaft;Ereignisart;Datum
-Deutschland;Mainz Campus;Zutrittsverletzung;2025-01-03 18:23
-Deutschland;Mainz Campus;Zutrittsverletzung;2025-01-04 22:10
-Deutschland;Mainz Campus;Alarmanlage ausgelöst;2025-01-05 05:11
-Deutschland;Berlin Research;Zutrittsverletzung;2025-02-01 08:45
-Deutschland;Berlin Research;Verdächtige Person;2025-02-02 09:30
-Deutschland;Berlin Research;Verdächtige Person;2025-02-04 14:05
-Deutschland;München Warehouse;Diebstahl;2025-03-01 23:50
-Deutschland;München Warehouse;Diebstahl;2025-03-02 21:40
-Deutschland;München Warehouse;Alarmanlage ausgelöst;2025-03-05 03:10
-Deutschland;München Warehouse;Zutrittsverletzung;2025-03-06 06:05
-USA;Cambridge Lab;Zutrittsverletzung;2025-01-10 11:15
-USA;Cambridge Lab;Verdächtige Person;2025-01-12 19:05
-USA;Cambridge Lab;Alarmanlage ausgelöst;2025-01-15 20:45
-USA;San Diego Office;Verdächtige Person;2025-02-10 17:20
-USA;San Diego Office;Verdächtige Person;2025-02-12 18:10
-USA;San Diego Office;Diebstahl;2025-02-14 16:55
-USA;San Diego Office;Zutrittsverletzung;2025-02-16 07:40
-UK;London HQ;Zutrittsverletzung;2025-01-07 08:05
-UK;London HQ;Zutrittsverletzung;2025-01-09 09:15
-UK;London HQ;Verdächtige Person;2025-01-11 10:30
-UK;London HQ;Alarmanlage ausgelöst;2025-01-13 21:55
-UK;Reading Plant;Diebstahl;2025-03-03 23:05
-UK;Reading Plant;Diebstahl;2025-03-06 22:50
-UK;Reading Plant;Zutrittsverletzung;2025-03-07 04:15
-Schweiz;Basel Site;Verdächtige Person;2025-02-03 13:15
-Schweiz;Basel Site;Verdächtige Person;2025-02-05 14:25
-Schweiz;Basel Site;Alarmanlage ausgelöst;2025-02-06 02:50
-Schweiz;Basel Site;Zutrittsverletzung;2025-02-08 06:30
-Belgien;Brüssel Office;Zutrittsverletzung;2025-01-20 07:40
-Belgien;Brüssel Office;Diebstahl;2025-01-22 20:10
-Belgien;Brüssel Office;Diebstahl;2025-01-23 21:20
-Belgien;Brüssel Office;Verdächtige Person;2025-01-25 15:30`
-};
-
-// =============================================
-// UTILITY FUNCTIONS
-// =============================================
-const Utils = {
-    parseCSV(text) {
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
-        if (!lines.length) return { headers: [], rows: [] };
-
-        const delimiter = lines[0].includes(';') ? ';' : ',';
-        const headers = lines[0].split(delimiter).map(h => h.trim());
-
-        const rows = lines.slice(1).map(line => {
-            const cells = line.split(delimiter);
-            const row = {};
-            headers.forEach((h, i) => row[h] = (cells[i] || '').trim());
-            return row;
-        });
-
-        return { headers, rows };
-    },
-
-    createHeaderMap(headers) {
-        const map = {};
-        headers.forEach(h => {
-            const lower = h.toLowerCase();
-            if (lower.includes('land') || lower.includes('country')) map.country = h;
-            if (lower.includes('liegenschaft') || lower.includes('site')) map.site = h;
-            if (lower.includes('ereignis') || lower.includes('event')) map.type = h;
-            if (lower.includes('datum') || lower.includes('date')) map.date = h;
-            if (lower.includes('zeit') || lower.includes('uhr') || lower.includes('time')) map.time = h;
-        });
-        return map;
-    },
-
-    groupAndCount(data, keyFn) {
-        const map = new Map();
-        data.forEach(row => {
-            const key = keyFn(row);
-            if (key) map.set(key, (map.get(key) || 0) + 1);
-        });
-        return Array.from(map.entries())
-            .map(([key, count]) => ({ key, count }))
-            .sort((a, b) => b.count - a.count);
-    },
-
-    classifyCategory(row, headerMap) {
-        const fields = [];
-
-        if (headerMap.type && row[headerMap.type]) {
-            fields.push(row[headerMap.type]);
-        }
-        Object.keys(row).forEach(key => {
-            const lower = key.toLowerCase();
-            if (lower.includes('beschreibung') || lower.includes('description') || lower.includes('kategorie')) {
-                fields.push(row[key]);
+        t: function(key, vars) {
+            vars = vars || {};
+            var text = '';
+            if (this.strings[key] && this.strings[key][this.current]) {
+                text = this.strings[key][this.current];
+            } else if (this.strings[key] && this.strings[key].de) {
+                text = this.strings[key].de;
+            } else {
+                text = key;
             }
-        });
+            // Variablen ersetzen
+            for (var v in vars) {
+                text = text.replace(new RegExp('\\{\\{' + v + '\\}\\}', 'g'), vars[v]);
+            }
+            return text;
+        },
 
-        const text = fields.join(' ').toLowerCase();
-
-        const securityKeywords = [
-            'diebstahl', 'einbruch', 'vandalismus', 'zutrittsverletzung',
-            'unbefugter zutritt', 'verdächtige person', 'security', 'sicherheitsdienst',
-            'alarm', 'alarmanlage', 'sabotage', 'überfall', 'raub'
-        ];
-
-        const fmKeywords = [
-            'facility', 'gebäudetechnik', 'aufzug', 'fahrstuhl', 'klima',
-            'heizung', 'hlk', 'wartung', 'instandhaltung', 'reinigung',
-            'betriebstechnik', 'stromausfall', 'wasserleck', 'wasserleckage',
-            'beleuchtung', 'sanitär'
-        ];
-
-        const sheKeywords = [
-            'arbeitssicherheit', 'unfall', 'arbeitsunfall', 'verletzung', 'verletzte',
-            'near miss', 'beinaheunfall', 'gefährdung', 'gefahrstoff', 'chemikalie',
-            'brandschutz', 'brand', 'evakuierung', 'umwelt', 'leckage', 'austritt'
-        ];
-
-        const matchesAny = (list) => list.some(kw => text.includes(kw));
-
-        if (matchesAny(securityKeywords)) return 'Security';
-        if (matchesAny(fmKeywords)) return 'FM';
-        if (matchesAny(sheKeywords)) return 'SHE';
-
-        return 'Other';
-    }
-};
-
-// =============================================
-// UI HELPER
-// =============================================
-const UI = {
-    showToast(message, type = 'info', timeout = 4000) {
-        const container = document.getElementById('toastContainer');
-        if (!container) return;
-
-        const div = document.createElement('div');
-        div.className = `toast toast-${type}`;
-        div.textContent = message;
-        container.appendChild(div);
-
-        setTimeout(() => {
-            div.style.opacity = '0';
-            setTimeout(() => div.remove(), 300);
-        }, timeout);
-    }
-};
-
-// =============================================
-// CHART MANAGER (mit interaktiven Klicks)
-// =============================================
-const ChartManager = {
-    create(containerId, data, type = 'bar', maxBars = 6) {
-        const container = document.getElementById(containerId);
-        if (!container || !data?.length) {
-            if (container) container.innerHTML =
-                '<div class="empty-state"><strong>Keine Daten</strong><span>Bitte Daten laden oder Filter anpassen.</span></div>';
-            return;
-        }
-
-        if (DashboardState.chartInstances[containerId]) {
-            DashboardState.chartInstances[containerId].destroy();
-        }
-
-        container.innerHTML = '<canvas></canvas>';
-        const canvas = container.querySelector('canvas');
-
-        const chartData = data.slice(0, maxBars);
-        const labels = chartData.map(d => d.key || "(leer)");
-        const values = chartData.map(d => d.count);
-
-        const config = {
-            type,
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Anzahl Ereignisse',
-                    data: values,
-                    backgroundColor: CONFIG.chartColors.slice(0, values.length).map(color => color + '80'),
-                    borderColor: CONFIG.chartColors.slice(0, values.length),
-                    borderWidth: 1
-                }]
+        strings: {
+            pdf_title: {
+                de: 'SECURITY EVENT DASHBOARD',
+                en: 'SECURITY EVENT DASHBOARD'
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                devicePixelRatio: 2,
-                plugins: {
-                    legend: { display: type === 'pie', position: 'bottom' },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` {ctx.raw} Ereignisse`
+            pdf_subtitle: {
+                de: 'Executive Summary Report',
+                en: 'Executive Summary Report'
+            },
+            pdf_created: {
+                de: 'Erstellt: {{date}}',
+                en: 'Generated: {{date}}'
+            },
+            pdf_filename: {
+                de: 'Security-Report-{{date}}.pdf',
+                en: 'Security-Report-{{date}}.pdf'
+            },
+            section_summary: {
+                de: 'Executive Summary',
+                en: 'Executive Summary'
+            },
+            section_overview: {
+                de: 'Aggregierte Uebersicht',
+                en: 'Aggregated Overview'
+            },
+            key_facts: {
+                de: 'Ereignisse: {{events}} | Laender: {{countries}} | Standorte: {{sites}} | Typen: {{types}}',
+                en: 'Events: {{events}} | Countries: {{countries}} | Sites: {{sites}} | Types: {{types}}'
+            },
+            col_country: { de: 'Land', en: 'Country' },
+            col_site: { de: 'Liegenschaft', en: 'Site' },
+            col_type: { de: 'Ereignisart', en: 'Event Type' },
+            col_count: { de: 'Anzahl', en: 'Count' },
+            chart_countries: { de: 'Nach Laendern', en: 'By Country' },
+            chart_sites: { de: 'Nach Standorten', en: 'By Site' },
+            chart_types: { de: 'Nach Ereignisart', en: 'By Type' },
+            chart_domains: { de: 'Bereichsverteilung', en: 'Domain Distribution' },
+            footer_text: { de: 'Security Dashboard Report', en: 'Security Dashboard Report' },
+            footer_page: { de: 'Seite {{page}}', en: 'Page {{page}}' },
+            toast_testdata: { de: 'Testdaten geladen', en: 'Test data loaded' },
+            toast_csv_loaded: { de: 'CSV geladen: {{name}}', en: 'CSV loaded: {{name}}' },
+            toast_csv_error: { de: 'CSV Fehler: {{error}}', en: 'CSV Error: {{error}}' },
+            toast_no_data: { de: 'Keine Daten vorhanden', en: 'No data available' },
+            toast_csv_export: { de: 'CSV exportiert', en: 'CSV exported' },
+            toast_pdf_start: { de: 'PDF wird erstellt...', en: 'Creating PDF...' },
+            toast_pdf_done: { de: 'PDF erstellt', en: 'PDF created' },
+            toast_pdf_error: { de: 'PDF Fehler: {{error}}', en: 'PDF Error: {{error}}' },
+            filter_reset: { de: 'Filter zurueckgesetzt', en: 'Filters reset' },
+            filter_all_countries: { de: 'Alle Laender', en: 'All Countries' },
+            filter_all_sites: { de: 'Alle Liegenschaften', en: 'All Sites' },
+            filter_all_types: { de: 'Alle Ereignisarten', en: 'All Event Types' },
+            status_showing: { de: 'Zeige {{current}} von {{total}}', en: 'Showing {{current}} of {{total}}' },
+            status_no_data: { de: 'Keine Daten geladen', en: 'No data loaded' },
+            status_testdata: { de: 'Testdaten: {{count}} Events', en: 'Test data: {{count}} events' },
+            status_csv: { de: '{{name}}: {{count}} Events', en: '{{name}}: {{count}} events' },
+            risk_no_config: { de: 'Keine Ereignisarten. Bitte Daten laden.', en: 'No event types. Please load data.' },
+            analytics_waiting: { de: 'Warte auf Daten...', en: 'Waiting for data...' },
+            analytics_no_data: { de: 'Keine Daten fuer Analyse', en: 'No data for analysis' }
+        }
+    };
+
+    // ==========================================
+    // TESTDATEN
+    // ==========================================
+    window.TestData = {
+        csv: [
+            'Land;Liegenschaft;Ereignisart;Datum',
+            'Deutschland;Mainz Campus;Zutrittsverletzung;2025-01-03 18:23',
+            'Deutschland;Mainz Campus;Zutrittsverletzung;2025-01-04 22:10',
+            'Deutschland;Mainz Campus;Alarmanlage ausgeloest;2025-01-05 05:11',
+            'Deutschland;Berlin Research;Zutrittsverletzung;2025-02-01 08:45',
+            'Deutschland;Berlin Research;Verdaechtige Person;2025-02-02 09:30',
+            'Deutschland;Berlin Research;Verdaechtige Person;2025-02-04 14:05',
+            'Deutschland;Muenchen Warehouse;Diebstahl;2025-03-01 23:50',
+            'Deutschland;Muenchen Warehouse;Diebstahl;2025-03-02 21:40',
+            'Deutschland;Muenchen Warehouse;Alarmanlage ausgeloest;2025-03-05 03:10',
+            'Deutschland;Muenchen Warehouse;Zutrittsverletzung;2025-03-06 06:05',
+            'USA;Cambridge Lab;Zutrittsverletzung;2025-01-10 11:15',
+            'USA;Cambridge Lab;Verdaechtige Person;2025-01-12 19:05',
+            'USA;Cambridge Lab;Alarmanlage ausgeloest;2025-01-15 20:45',
+            'USA;San Diego Office;Verdaechtige Person;2025-02-10 17:20',
+            'USA;San Diego Office;Verdaechtige Person;2025-02-12 18:10',
+            'USA;San Diego Office;Diebstahl;2025-02-14 16:55',
+            'USA;San Diego Office;Zutrittsverletzung;2025-02-16 07:40',
+            'UK;London HQ;Zutrittsverletzung;2025-01-07 08:05',
+            'UK;London HQ;Zutrittsverletzung;2025-01-09 09:15',
+            'UK;London HQ;Verdaechtige Person;2025-01-11 10:30',
+            'UK;London HQ;Alarmanlage ausgeloest;2025-01-13 21:55',
+            'UK;Reading Plant;Diebstahl;2025-03-03 23:05',
+            'UK;Reading Plant;Diebstahl;2025-03-06 22:50',
+            'UK;Reading Plant;Zutrittsverletzung;2025-03-07 04:15',
+            'Schweiz;Basel Site;Verdaechtige Person;2025-02-03 13:15',
+            'Schweiz;Basel Site;Verdaechtige Person;2025-02-05 14:25',
+            'Schweiz;Basel Site;Alarmanlage ausgeloest;2025-02-06 02:50',
+            'Schweiz;Basel Site;Zutrittsverletzung;2025-02-08 06:30',
+            'Belgien;Bruessel Office;Zutrittsverletzung;2025-01-20 07:40',
+            'Belgien;Bruessel Office;Diebstahl;2025-01-22 20:10',
+            'Belgien;Bruessel Office;Diebstahl;2025-01-23 21:20',
+            'Belgien;Bruessel Office;Verdaechtige Person;2025-01-25 15:30'
+        ].join('\n')
+    };
+
+    console.log('Teil 1 geladen: State, Config, i18n, TestData');
+
+// ENDE TEIL 1 - NICHT SCHLIESSEN, TEIL 2 FOLGT DIREKT
+ // ==========================================
+// TEIL 2 von 5: Utils und UI Helper
+// ==========================================
+
+    // ==========================================
+    // HILFSFUNKTIONEN (Utils)
+    // ==========================================
+    window.Utils = {
+        // CSV parsen
+        parseCSV: function(text) {
+            if (!text || typeof text !== 'string') {
+                return { headers: [], rows: [] };
+            }
+
+            var lines = text.split(/\r?\n/);
+            var filteredLines = [];
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].trim() !== '') {
+                    filteredLines.push(lines[i]);
+                }
+            }
+
+            if (filteredLines.length === 0) {
+                return { headers: [], rows: [] };
+            }
+
+            var delimiter = filteredLines[0].indexOf(';') >= 0 ? ';' : ',';
+            var headerParts = filteredLines[0].split(delimiter);
+            var headers = [];
+            for (var h = 0; h < headerParts.length; h++) {
+                headers.push(headerParts[h].trim());
+            }
+
+            var rows = [];
+            for (var r = 1; r < filteredLines.length; r++) {
+                var cells = filteredLines[r].split(delimiter);
+                var row = {};
+                for (var c = 0; c < headers.length; c++) {
+                    row[headers[c]] = (cells[c] || '').trim();
+                }
+                rows.push(row);
+            }
+
+            return { headers: headers, rows: rows };
+        },
+
+        // Header-Map erstellen
+        createHeaderMap: function(headers) {
+            var map = {};
+            for (var i = 0; i < headers.length; i++) {
+                var h = headers[i];
+                var lower = h.toLowerCase();
+
+                if (lower.indexOf('land') >= 0 || lower.indexOf('country') >= 0) {
+                    map.country = h;
+                }
+                if (lower.indexOf('liegenschaft') >= 0 || lower.indexOf('site') >= 0 || lower.indexOf('standort') >= 0) {
+                    map.site = h;
+                }
+                if (lower.indexOf('ereignis') >= 0 || lower.indexOf('event') >= 0 || lower.indexOf('typ') >= 0 || lower.indexOf('type') >= 0) {
+                    map.type = h;
+                }
+                if (lower.indexOf('datum') >= 0 || lower.indexOf('date') >= 0) {
+                    map.date = h;
+                }
+            }
+            return map;
+        },
+
+        // Gruppieren und Zaehlen
+        groupAndCount: function(data, keyFn) {
+            var map = {};
+            for (var i = 0; i < data.length; i++) {
+                var key = keyFn(data[i]);
+                if (key) {
+                    map[key] = (map[key] || 0) + 1;
+                }
+            }
+
+            var result = [];
+            for (var k in map) {
+                if (map.hasOwnProperty(k)) {
+                    result.push({ key: k, count: map[k] });
+                }
+            }
+
+            result.sort(function(a, b) {
+                return b.count - a.count;
+            });
+
+            return result;
+        },
+
+        // Bereich klassifizieren
+        classifyDomain: function(row, headerMap) {
+            var text = '';
+            if (headerMap.type && row[headerMap.type]) {
+                text = row[headerMap.type].toLowerCase();
+            }
+
+            var securityWords = ['diebstahl', 'einbruch', 'vandalismus', 'zutritt', 'verdaechtig', 'alarm', 'security', 'raub'];
+            var fmWords = ['facility', 'aufzug', 'klima', 'heizung', 'wartung', 'strom', 'wasser', 'technik'];
+            var sheWords = ['unfall', 'verletzung', 'brand', 'feuer', 'evakuierung', 'gefahr', 'sicherheit'];
+
+            for (var s = 0; s < securityWords.length; s++) {
+                if (text.indexOf(securityWords[s]) >= 0) return 'Security';
+            }
+            for (var f = 0; f < fmWords.length; f++) {
+                if (text.indexOf(fmWords[f]) >= 0) return 'FM';
+            }
+            for (var h = 0; h < sheWords.length; h++) {
+                if (text.indexOf(sheWords[h]) >= 0) return 'SHE';
+            }
+
+            return 'Other';
+        },
+
+        // HTML escapen
+        escapeHtml: function(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        },
+
+        // Datum formatieren
+        formatDate: function(date) {
+            var d = date || new Date();
+            var day = String(d.getDate()).padStart(2, '0');
+            var month = String(d.getMonth() + 1).padStart(2, '0');
+            var year = d.getFullYear();
+            var hours = String(d.getHours()).padStart(2, '0');
+            var mins = String(d.getMinutes()).padStart(2, '0');
+            return day + '.' + month + '.' + year + ' ' + hours + ':' + mins;
+        },
+
+        // Datum fuer Dateinamen
+        dateForFilename: function() {
+            var d = new Date();
+            var year = d.getFullYear();
+            var month = String(d.getMonth() + 1).padStart(2, '0');
+            var day = String(d.getDate()).padStart(2, '0');
+            return year + '-' + month + '-' + day;
+        }
+    };
+
+    // ==========================================
+    // UI HELPER
+    // ==========================================
+    window.UI = {
+        // Toast anzeigen
+        showToast: function(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 4000;
+
+            var container = document.getElementById('toastContainer');
+            if (!container) {
+                console.log('Toast:', message);
+                return;
+            }
+
+            var toast = document.createElement('div');
+            toast.className = 'toast toast-' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(20px)';
+                setTimeout(function() {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }, duration);
+        },
+
+        // Text in Element setzen
+        setText: function(id, text) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.textContent = text;
+            }
+        },
+
+        // HTML in Element setzen
+        setHtml: function(id, html) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.innerHTML = html;
+            }
+        },
+
+        // Element anzeigen/verstecken
+        show: function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = '';
+        },
+
+        hide: function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        }
+    };
+
+    console.log('Teil 2 geladen: Utils, UI Helper');
+
+// ENDE TEIL 2 - TEIL 3 FOLGT DIREKT
+ // ==========================================
+// TEIL 3 von 5: ChartManager und Analytics
+// ==========================================
+
+    // ==========================================
+    // CHART MANAGER
+    // ==========================================
+    window.ChartManager = {
+        // Chart erstellen
+        create: function(canvasId, data, chartType, maxItems) {
+            chartType = chartType || 'bar';
+            maxItems = maxItems || CONFIG.maxChartItems;
+
+            var canvas = document.getElementById(canvasId);
+            if (!canvas) {
+                console.warn('Canvas nicht gefunden:', canvasId);
+                return;
+            }
+
+            // Alten Chart zerstoeren
+            if (AppState.charts[canvasId]) {
+                AppState.charts[canvasId].destroy();
+                delete AppState.charts[canvasId];
+            }
+
+            // Keine Daten
+            if (!data || data.length === 0) {
+                var ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#999';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Keine Daten', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            // Daten vorbereiten
+            var chartData = data.slice(0, maxItems);
+            var labels = [];
+            var values = [];
+            for (var i = 0; i < chartData.length; i++) {
+                labels.push(chartData[i].key || '(leer)');
+                values.push(chartData[i].count);
+            }
+
+            var colors = CONFIG.chartColors.slice(0, values.length);
+            var bgColors = [];
+            for (var c = 0; c < colors.length; c++) {
+                bgColors.push(colors[c] + '99'); // Mit Transparenz
+            }
+
+            // Chart-Konfiguration
+            var config = {
+                type: chartType,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Anzahl',
+                        data: values,
+                        backgroundColor: bgColors,
+                        borderColor: colors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: chartType === 'pie',
+                            position: 'bottom'
+                        }
+                    },
+                    scales: chartType === 'pie' ? {} : {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
                         }
                     }
-                },
-                scales: type === 'pie' ? {} : {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1 }
-                    }
+                }
+            };
+
+            // Chart erstellen
+            try {
+                var ctx = canvas.getContext('2d');
+                AppState.charts[canvasId] = new Chart(ctx, config);
+            } catch (e) {
+                console.error('Chart-Fehler:', e);
+            }
+        },
+
+        // Alle Charts zerstoeren
+        destroyAll: function() {
+            for (var key in AppState.charts) {
+                if (AppState.charts.hasOwnProperty(key) && AppState.charts[key]) {
+                    AppState.charts[key].destroy();
                 }
             }
-        };
-
-        const chart = new Chart(canvas, config);
-        DashboardState.chartInstances[containerId] = chart;
-
-        canvas.onclick = (evt) => {
-            const points = chart.getElementsAtEventForMode(
-                evt,
-                'nearest',
-                { intersect: true },
-                true
-            );
-            if (!points.length) return;
-
-            const index = points[0].index;
-            const label = chart.data.labels[index];
-            if (!label) return;
-
-            if (containerId === 'chartCountries') {
-                const select = document.getElementById('filterCountry');
-                if (!select) return;
-                const option = Array.from(select.options).find(o => o.value === label);
-                if (option) {
-                    select.value = label;
-                    FilterManager.apply();
-                }
-            }
-
-            if (containerId === 'chartSites') {
-                const select = document.getElementById('filterSite');
-                if (!select) return;
-                const option = Array.from(select.options).find(o => o.value === label);
-                if (option) {
-                    select.value = label;
-                    FilterManager.apply();
-                }
-            }
-
-            if (containerId === 'chartTypes') {
-                const select = document.getElementById('filterType');
-                if (!select) return;
-                const option = Array.from(select.options).find(o => o.value === label);
-                if (option) {
-                    select.value = label;
-                    FilterManager.apply();
-                }
-            }
-        };
-    },
-
-    destroyAll() {
-        Object.values(DashboardState.chartInstances).forEach(chart => chart.destroy());
-        DashboardState.chartInstances = {};
-    }
-};
-
-// =============================================
-// ANALYTICS ENGINE
-// =============================================
-class SecurityAnalytics {
-    constructor(data, headerMap) {
-        this.data = data;
-        this.headerMap = headerMap;
-        this.insights = {};
-    }
-
-    analyze() {
-        console.log('🧠 Running Smart Analytics...');
-        this.calculateRiskAssessment();
-        this.detectPatterns();
-        this.generateRecommendations();
-        this.forecastTrends();
-        this.analyzeTimePatterns();
-        this.analyzeDomainMix();
-        this.renderAllInsights();
-    }
-
-    calculateRiskAssessment() {
-        const eventsByType = Utils.groupAndCount(this.data, row =>
-            this.headerMap.type ? row[this.headerMap.type] : '');
-
-        let totalRisk = 0, maxRisk = 0, highRiskEvents = 0;
-
-        eventsByType.forEach(event => {
-            const weight = CONFIG.riskWeights[event.key] || 3;
-            totalRisk += event.count * weight;
-            maxRisk += event.count * 10;
-
-            if (weight >= 8) highRiskEvents += event.count;
-        });
-
-        const riskPercent = Math.round((totalRisk / Math.max(maxRisk, 1)) * 100);
-        const level = riskPercent >= 70 ? 'HOCH' : riskPercent >= 40 ? 'MITTEL' : 'NIEDRIG';
-        const riskClass = riskPercent >= 70 ? 'high' : riskPercent >= 40 ? 'medium' : 'low';
-
-        this.insights.risk = {
-            score: riskPercent,
-            level: level,
-            class: riskClass,
-            highRiskEvents: highRiskEvents,
-            totalEvents: this.data.length,
-            criticalTypes: eventsByType.filter(e => (CONFIG.riskWeights[e.key] || 0) >= 8)
-        };
-    }
-
-    detectPatterns() {
-        const patterns = [];
-
-        const siteEvents = Utils.groupAndCount(this.data, row =>
-            this.headerMap.site ? row[this.headerMap.site] : "");
-
-        const avgEventsPerSite = this.data.length / Math.max(siteEvents.length, 1);
-        const hotspots = siteEvents.filter(site => site.count > avgEventsPerSite * 1.5);
-
-        if (hotspots.length > 0) {
-            patterns.push({
-                type: 'hotspot',
-                title: 'Ereignis-Hotspots entdeckt',
-                description: `${hotspots.length} Standorte mit überdurchschnittlich vielen Ereignissen`,
-                severity: hotspots[0].count > avgEventsPerSite * 2 ? 'high' : 'medium'
-            });
+            AppState.charts = {};
         }
+    };
 
-        const typeEvents = Utils.groupAndCount(this.data, row =>
-            this.headerMap.type ? row[this.headerMap.type] : "");
+    // ==========================================
+    // SECURITY ANALYTICS
+    // ==========================================
+    window.Analytics = {
+        insights: {},
 
-        if (typeEvents.length > 0) {
-            const dominantType = typeEvents[0];
-            const concentration = (dominantType.count / this.data.length) * 100;
+        // Analyse starten
+        analyze: function(data, headerMap) {
+            if (!data || data.length === 0) {
+                this.insights = {};
+                this.renderEmpty();
+                return;
+            }
 
-            if (concentration > 40) {
+            this.calculateRisk(data, headerMap);
+            this.analyzePatterns(data, headerMap);
+            this.analyzeDomains(data, headerMap);
+            this.generateRecommendations();
+            this.renderAll();
+        },
+
+        // Risiko berechnen
+        calculateRisk: function(data, headerMap) {
+            var byType = Utils.groupAndCount(data, function(row) {
+                return headerMap.type ? row[headerMap.type] : '';
+            });
+
+            var totalRisk = 0;
+            var maxRisk = 0;
+            var highRiskCount = 0;
+            var criticalTypes = [];
+
+            for (var i = 0; i < byType.length; i++) {
+                var item = byType[i];
+                var weight = CONFIG.riskWeights[item.key] || 3;
+                totalRisk += item.count * weight;
+                maxRisk += item.count * 10;
+
+                if (weight >= 8) {
+                    highRiskCount += item.count;
+                    criticalTypes.push(item);
+                }
+            }
+
+            var score = Math.round((totalRisk / Math.max(maxRisk, 1)) * 100);
+            var level, levelClass;
+
+            if (score >= 70) {
+                level = 'HOCH';
+                levelClass = 'high';
+            } else if (score >= 40) {
+                level = 'MITTEL';
+                levelClass = 'medium';
+            } else {
+                level = 'NIEDRIG';
+                levelClass = 'low';
+            }
+
+            this.insights.risk = {
+                score: score,
+                level: level,
+                levelClass: levelClass,
+                highRiskCount: highRiskCount,
+                totalCount: data.length,
+                criticalTypes: criticalTypes
+            };
+        },
+
+        // Muster analysieren
+        analyzePatterns: function(data, headerMap) {
+            var patterns = [];
+
+            // Hotspots finden
+            var bySite = Utils.groupAndCount(data, function(row) {
+                return headerMap.site ? row[headerMap.site] : '';
+            });
+
+            var avgPerSite = data.length / Math.max(bySite.length, 1);
+            var hotspots = [];
+
+            for (var i = 0; i < bySite.length; i++) {
+                if (bySite[i].count > avgPerSite * 1.5) {
+                    hotspots.push(bySite[i]);
+                }
+            }
+
+            if (hotspots.length > 0) {
                 patterns.push({
-                    type: 'concentration',
-                    title: 'Ereignis-Konzentration erkannt',
-                    description: `${Math.round(concentration)}% aller Ereignisse sind "${dominantType.key}"`,
-                    severity: concentration > 60 ? 'high' : 'medium'
+                    type: 'hotspot',
+                    title: hotspots.length + ' Hotspot(s) erkannt',
+                    detail: hotspots[0].key + ': ' + hotspots[0].count + ' Events'
                 });
             }
-        }
 
-        this.insights.patterns = patterns;
-    }
-
-    generateRecommendations() {
-        const recommendations = [];
-        const risk = this.insights.risk;
-
-        if (risk.level === 'HOCH') {
-            recommendations.push({
-                priority: 'high',
-                icon: '🚨',
-                title: 'Sofortige Sicherheitsmaßnahmen',
-                title_en: 'Immediate Security Measures',
-                action: 'Sicherheitsaudit durchführen und Notfallplan aktivieren',
-                action_en: 'Conduct a security audit and activate emergency response plans',
-                reason: `Risiko-Score von {risk.score}% erfordert schnelles Handeln`
+            // Konzentration pruefen
+            var byType = Utils.groupAndCount(data, function(row) {
+                return headerMap.type ? row[headerMap.type] : '';
             });
-        }
 
-        if (risk.criticalTypes.length > 0) {
-            recommendations.push({
-                priority: 'high',
-                icon: '🔒',
-                title: 'Kritische Ereignisarten adressieren',
-                title_en: 'Address Critical Event Types',
-                action: `Präventionsmaßnahmen für {risk.criticalTypes[0].key} verstärken`,
-                action_en: `Strengthen preventive measures for {risk.criticalTypes[0].key}`,
-                reason: `${risk.criticalTypes[0].count} kritische Ereignisse registriert`
-            });
-        }
+            if (byType.length > 0) {
+                var topType = byType[0];
+                var concentration = Math.round((topType.count / data.length) * 100);
 
-        if (this.data.length > 20) {
-            recommendations.push({
-                priority: 'medium',
-                icon: '📊',
-                title: 'Regelmäßiges Monitoring',
-                title_en: 'Regular Monitoring',
-                action: 'Wöchentliche Dashboard-Reviews etablieren',
-                action_en: 'Establish weekly dashboard review routines',
-                reason: `${this.data.length} Ereignisse zeigen hohe Aktivität`
-            });
-        }
-
-        recommendations.sort((a, b) => {
-            const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-            return priorityOrder[b.priority] - priorityOrder[a.priority];
-        });
-
-        this.insights.recommendations = recommendations.slice(0, 4);
-    }
-
-    forecastTrends() {
-        const trends = [];
-        const risk = this.insights.risk;
-
-        const riskTrend = risk.score > 60 ? 'steigend' : risk.score < 30 ? 'fallend' : 'stabil';
-        trends.push({
-            metric: 'Gesamt-Risiko',
-            current: `${risk.score}%`,
-            forecast: riskTrend,
-            confidence: '82%'
-        });
-
-        const monthlyGrowth = this.data.length > 50 ? '+12%' :
-            this.data.length > 20 ? '+5%' : '-3%';
-        trends.push({
-            metric: 'Ereignis-Volumen',
-            current: `${this.data.length} Events`,
-            forecast: `Nächster Monat: {monthlyGrowth}`,
-            confidence: '75%'
-        });
-
-        const topRiskType = risk.criticalTypes[0];
-        if (topRiskType) {
-            trends.push({
-                metric: topRiskType.key,
-                current: `${topRiskType.count} Vorfälle`,
-                forecast: 'Gleichbleibend hoch',
-                confidence: '88%'
-            });
-        }
-
-        this.insights.trends = trends;
-    }
-
-    analyzeTimePatterns() {
-        const dateField = this.headerMap.date;
-        const timeField = this.headerMap.time;
-
-        if (!dateField && !timeField) {
-            this.insights.timePatterns = null;
-            return;
-        }
-
-        const hourBuckets = { '00-06': 0, '06-12': 0, '12-18': 0, '18-24': 0 };
-        const weekdayCounts = [0, 0, 0, 0, 0, 0, 0];
-
-        this.data.forEach(row => {
-            let dateTimeStr = '';
-
-            if (dateField && row[dateField]) dateTimeStr += row[dateField];
-            if (timeField && row[timeField]) dateTimeStr += ' ' + row[timeField];
-
-            const d = new Date(dateTimeStr.trim());
-            if (isNaN(d.getTime())) return;
-
-            const hour = d.getHours();
-            const weekday = d.getDay();
-
-            if (hour < 6) hourBuckets['00-06']++;
-            else if (hour < 12) hourBuckets['06-12']++;
-            else if (hour < 18) hourBuckets['12-18']++;
-            else hourBuckets['18-24']++;
-
-            if (weekday >= 0 && weekday <= 6) {
-                weekdayCounts[weekday]++;
+                if (concentration > 40) {
+                    patterns.push({
+                        type: 'concentration',
+                        title: 'Konzentration: ' + concentration + '%',
+                        detail: '"' + topType.key + '" dominiert'
+                    });
+                }
             }
-        });
 
-        const totalEvents = this.data.length || 1;
+            this.insights.patterns = patterns;
+        },
 
-        const hourBucketArray = Object.entries(hourBuckets)
-            .map(([range, count]) => ({ range, count }))
-            .sort((a, b) => b.count - a.count);
-        const topHourBucket = hourBucketArray[0];
+        // Bereiche analysieren
+        analyzeDomains: function(data, headerMap) {
+            var counts = { Security: 0, FM: 0, SHE: 0, Other: 0 };
 
-        const weekdayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-        const weekdayArray = weekdayCounts.map((count, idx) => ({
-            name: weekdayNames[idx],
-            count
-        })).sort((a, b) => b.count - a.count);
-        const topWeekday = weekdayArray[0];
-
-        const weekendCount = weekdayCounts[0] + weekdayCounts[6];
-        const weekdayCount = totalEvents - weekendCount;
-
-        this.insights.timePatterns = {
-            hourBuckets,
-            weekdayCounts,
-            topHourBucket,
-            topWeekday,
-            weekendVsWeekday: {
-                weekend: weekendCount,
-                weekday: weekdayCount,
-                weekendShare: Math.round((weekendCount / totalEvents) * 100),
-                weekdayShare: Math.round((weekdayCount / totalEvents) * 100)
+            for (var i = 0; i < data.length; i++) {
+                var domain = Utils.classifyDomain(data[i], headerMap);
+                counts[domain]++;
             }
-        };
-    }
 
-    analyzeDomainMix() {
-        const counts = { Security: 0, FM: 0, SHE: 0, Other: 0 };
-        const riskByDomain = { Security: 0, FM: 0, SHE: 0, Other: 0 };
+            var total = data.length || 1;
+            var domains = [];
 
-        this.data.forEach(row => {
-            const domain = Utils.classifyCategory(row, this.headerMap);
-            counts[domain]++;
+            for (var d in counts) {
+                if (counts.hasOwnProperty(d)) {
+                    domains.push({
+                        name: d,
+                        count: counts[d],
+                        share: Math.round((counts[d] / total) * 100)
+                    });
+                }
+            }
 
-            const typeValue = this.headerMap.type ? row[this.headerMap.type] : '';
-            const weight = CONFIG.riskWeights[typeValue] || 3;
-            riskByDomain[domain] += weight;
-        });
+            domains.sort(function(a, b) { return b.count - a.count; });
 
-        const totalEvents = this.data.length || 1;
+            this.insights.domains = domains;
+        },
 
-        const domainArray = Object.keys(counts).map(domain => ({
-            domain,
-            count: counts[domain],
-            share: Math.round((counts[domain] / totalEvents) * 100),
-            riskScore: Math.round(riskByDomain[domain])
-        })).sort((a, b) => b.count - a.count);
+        // Empfehlungen generieren
+        generateRecommendations: function() {
+            var recommendations = [];
+            var risk = this.insights.risk;
 
-        this.insights.domainMix = {
-            totalEvents,
-            byDomain: domainArray
-        };
-    }
+            if (!risk) {
+                this.insights.recommendations = [];
+                return;
+            }
 
-    renderAllInsights() {
-        this.renderRiskAssessment();
-        this.renderPatternDetection();
-        this.renderRecommendations();
-        this.renderTrendForecast();
-    }
-
-    renderRiskAssessment() {
-        const container = document.getElementById('riskAssessment');
-        const risk = this.insights.risk;
-
-        container.innerHTML = `
-            <div class="insight-item risk-${risk.class}">
-                <div class="insight-value">Risiko-Level: {risk.level} (${risk.score}%)</div>
-                <div class="insight-trend">
-                    {risk.highRiskEvents} kritische Ereignisse von {risk.totalEvents} gesamt
-                </div>
-                <div class="insight-trend">
-                    Basis: gewichtete Häufigkeit nach Ereignisart (Einbruch, Diebstahl, Vandalismus etc.).
-                </div>
-            </div>
-            {risk.criticalTypes.length > 0 ? `
-                <div class="insight-item">
-                    <div class="insight-value">⚠️ Kritischster Typ:</div>
-                    <div class="insight-trend">{risk.criticalTypes[0].key} (${risk.criticalTypes[0].count}x)</div>
-                </div>
-            ` : ''}
-        `;
-    }
-
-    renderPatternDetection() {
-        const container = document.getElementById('patternDetection');
-        const patterns = this.insights.patterns;
-        const domainMix = this.insights.domainMix;
-
-        let html = '';
-
-        if (patterns.length === 0) {
-            html += `
-                <div class="insight-item">
-                    <div class="insight-value">✅ Keine kritischen Muster erkannt</div>
-                    <div class="insight-trend">Ereignisverteilung ist ausgewogen</div>
-                </div>
-            `;
-        } else {
-            html += patterns.slice(0, 2).map(pattern => `
-                <div class="insight-item">
-                    <div class="insight-value">{pattern.severity === 'high' ? '🔴' : '🟡'} {pattern.title}</div>
-                    <div class="insight-trend">{pattern.description}</div>
-                </div>
-            `).join('');
-        }
-
-        if (domainMix && domainMix.byDomain && domainMix.byDomain.length) {
-            const top = domainMix.byDomain[0];
-            const sec = domainMix.byDomain.find(d => d.domain === 'Security');
-            const fm  = domainMix.byDomain.find(d => d.domain === 'FM');
-            const she = domainMix.byDomain.find(d => d.domain === 'SHE');
-
-            html += `
-                <div class="insight-item">
-                    <div class="insight-value">Bereichszuordnung (Security / FM / SHE)</div>
-                    <div class="insight-trend">
-                        Dominanter Bereich: <strong>{top.domain}</strong>
-                        (${top.count} Events, {top.share}% Anteil).
-                    </div>
-                    <div class="insight-trend">
-                        Security: {sec ? `${sec.count} (${sec.share}%)` : '0 (0%)'} |
-                        FM: {fm ? `${fm.count} (${fm.share}%)` : '0 (0%)'} |
-                        SHE: {she ? `${she.count} (${she.share}%)` : '0 (0%)'}
-                    </div>
-                    <div class="insight-trend">
-                        Risikobeitrag (Punkte): 
-                        Security {sec ? sec.riskScore : 0}, 
-                        FM {fm ? fm.riskScore : 0}, 
-                        SHE {she ? she.riskScore : 0}.
-                    </div>
-                </div>
-            `;
-        }
-
-        container.innerHTML = html;
-    }
-
-    renderRecommendations() {
-        const container = document.getElementById('smartRecommendations');
-        const recommendations = this.insights.recommendations;
-        const lang = i18n.current;
-
-        container.innerHTML = recommendations.slice(0, 3).map(rec => {
-            const title = lang === 'de' ? rec.title : (rec.title_en || rec.title);
-            const action = lang === 'de' ? rec.action : (rec.action_en || rec.action);
-            return `
-                <div class="insight-item">
-                    <div class="insight-value">{rec.icon} {title}</div>
-                    <div class="insight-trend">{action}</div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    renderTrendForecast() {
-        const container = document.getElementById('trendForecast');
-        const trends = this.insights.trends || [];
-        const timePatterns = this.insights.timePatterns;
-
-        let html = trends.slice(0, 3).map(trend => `
-            <div class="insight-item">
-                <div class="insight-value">{trend.metric}: {trend.current}</div>
-                <div class="insight-trend">
-                    {trend.forecast} (${trend.confidence} Konfidenz)
-                </div>
-            </div>
-        `).join('');
-
-        if (timePatterns && timePatterns.topHourBucket && timePatterns.topWeekday) {
-            html += `
-                <div class="insight-item">
-                    <div class="insight-value">Zeitliche Muster</div>
-                    <div class="insight-trend">
-                        Häufigste Zeitspanne: <strong>{timePatterns.topHourBucket.range} Uhr</strong>
-                        (${timePatterns.topHourBucket.count} Ereignisse).
-                    </div>
-                    <div class="insight-trend">
-                        Häufigster Wochentag: <strong>{timePatterns.topWeekday.name}</strong>
-                        (${timePatterns.topWeekday.count} Ereignisse).
-                    </div>
-                    <div class="insight-trend">
-                        Verteilung: <strong>{timePatterns.weekendVsWeekday.weekdayShare}%</strong> Werktag vs.
-                        <strong>{timePatterns.weekendVsWeekday.weekendShare}%</strong> Wochenende.
-                    </div>
-                </div>
-            `;
-        }
-
-        container.innerHTML = html;
-    }
-}
-
-// =============================================
-// THEME MANAGER
-// =============================================
-const ThemeManager = {
-    init() {
-        const toggle = document.getElementById('themeToggle');
-        const label = document.querySelector('.theme-label');
-
-        if (!toggle || !label) return;
-
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        this.setTheme(savedTheme);
-
-        toggle.addEventListener('click', () => {
-            const current = document.documentElement.getAttribute('data-theme') || 'light';
-            const newTheme = current === 'dark' ? 'light' : 'dark';
-            this.setTheme(newTheme);
-        });
-    },
-
-    setTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
-
-        const label = document.querySelector('.theme-label');
-        if (label) {
-            label.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
-        }
-
-        console.log(`🎨 Theme changed to: {theme}`);
-    }
-};
-
-// =============================================
-// RISK CONFIGURATION MANAGER
-// =============================================
-const RiskConfigManager = {
-    STORAGE_KEY: 'securityDashboardRiskWeights',
-
-    loadFromStorage() {
-        try {
-            const raw = localStorage.getItem(this.STORAGE_KEY);
-            if (!raw) return;
-            const stored = JSON.parse(raw);
-            Object.assign(CONFIG.riskWeights, stored);
-            console.log('🔐 Risk weights loaded from storage:', CONFIG.riskWeights);
-        } catch (e) {
-            console.warn('Could not load risk weights from storage:', e);
-        }
-    },
-
-    saveToStorage() {
-        try {
-            localStorage.setItem(
-                this.STORAGE_KEY,
-                JSON.stringify(CONFIG.riskWeights)
-            );
-            console.log('💾 Risk weights saved to storage:', CONFIG.riskWeights);
-        } catch (e) {
-            console.warn('Could not save risk weights:', e);
-        }
-    },
-
-    render() {
-        const container = document.getElementById('riskConfigContainer');
-        if (!container) return;
-
-        const types = [...new Set(
-            DashboardState.allData
-                .map(row => DashboardState.headerMap.type ? row[DashboardState.headerMap.type] : '')
-                .filter(Boolean)
-                .map(v => v.trim())
-        )].sort();
-
-        if (!types.length) {
-            container.innerHTML =
-                '<div class="hint">Keine Ereignisarten erkannt. Bitte Daten laden.</div>';
-            return;
-        }
-
-        const rowsHtml = types.map(type => {
-            const currentWeight = CONFIG.riskWeights[type] ?? 3;
-            return `
-                <div class="risk-config-row">
-                    <div class="risk-config-label" title="${type}">{type}</div>
-                    <input
-                        class="risk-config-input"
-                        type="number"
-                        min="1"
-                        max="10"
-                        step="1"
-                        data-risk-type="${type}"
-                        value="${currentWeight}"
-                    />
-                </div>
-            `;
-        }).join('');
-
-        container.innerHTML = rowsHtml;
-
-        container.querySelectorAll('.risk-config-input').forEach(input => {
-            input.addEventListener('change', (e) => {
-                let value = parseInt(e.target.value, 10);
-                if (isNaN(value)) value = 3;
-                if (value < 1) value = 1;
-                if (value > 10) value = 10;
-                e.target.value = value;
-
-                const type = e.target.getAttribute('data-risk-type');
-                CONFIG.riskWeights[type] = value;
-
-                this.saveToStorage();
-                RenderManager.runAnalytics();
-            });
-        });
-    }
-};
-
-// =============================================
-// EXPORT MANAGER
-// =============================================
-const ExportManager = {
-    toCSV() {
-        if (!DashboardState.currentData || DashboardState.currentData.length === 0) {
-            UI.showToast('Keine Daten zum CSV-Export vorhanden. Bitte Daten laden oder Filter anpassen.', 'error');
-            return;
-        }
-
-        const status = document.getElementById('exportStatus');
-        if (status) {
-            status.style.display = 'block';
-            status.textContent = 'CSV wird erstellt...';
-        }
-
-        try {
-            const headers = Object.keys(DashboardState.currentData[0]);
-            let csvContent = headers.join(',') + '\n';
-
-            DashboardState.currentData.forEach(row => {
-                const values = headers.map(header => {
-                    const value = row[header] || '';
-                    return `"${value.toString().replace(/"/g, '""')}"`;
+            if (risk.level === 'HOCH') {
+                recommendations.push({
+                    icon: '🚨',
+                    text: 'Sofortige Sicherheitsmassnahmen empfohlen'
                 });
-                csvContent += values.join(',') + '\n';
+            }
+
+            if (risk.criticalTypes && risk.criticalTypes.length > 0) {
+                recommendations.push({
+                    icon: '🔒',
+                    text: 'Fokus auf: ' + risk.criticalTypes[0].key
+                });
+            }
+
+            if (risk.totalCount > 20) {
+                recommendations.push({
+                    icon: '📊',
+                    text: 'Regelmaessiges Monitoring etablieren'
+                });
+            }
+
+            if (recommendations.length === 0) {
+                recommendations.push({
+                    icon: '✅',
+                    text: 'Standardbetrieb fortfuehren'
+                });
+            }
+
+            this.insights.recommendations = recommendations;
+        },
+
+        // Leere Anzeige
+        renderEmpty: function() {
+            var msg = i18n.t('analytics_no_data');
+            UI.setHtml('riskAssessment', '<div class="insight-content">' + msg + '</div>');
+            UI.setHtml('patternDetection', '<div class="insight-content">' + msg + '</div>');
+            UI.setHtml('recommendations', '<div class="insight-content">' + msg + '</div>');
+            UI.setHtml('trendForecast', '<div class="insight-content">' + msg + '</div>');
+        },
+
+        // Alles rendern
+        renderAll: function() {
+            this.renderRisk();
+            this.renderPatterns();
+            this.renderRecommendations();
+            this.renderTrend();
+        },
+
+        // Risiko rendern
+        renderRisk: function() {
+            var risk = this.insights.risk;
+            if (!risk) return;
+
+            var html = '<div class="insight-card-inner risk-' + risk.levelClass + '">';
+            html += '<div class="insight-value">' + risk.level + ' (' + risk.score + '%)</div>';
+            html += '<div class="insight-detail">' + risk.highRiskCount + ' kritische von ' + risk.totalCount + ' Events</div>';
+
+            if (risk.criticalTypes && risk.criticalTypes.length > 0) {
+                html += '<div class="insight-detail">Top: ' + Utils.escapeHtml(risk.criticalTypes[0].key) + '</div>';
+            }
+
+            html += '</div>';
+            UI.setHtml('riskAssessment', html);
+        },
+
+        // Muster rendern
+        renderPatterns: function() {
+            var patterns = this.insights.patterns || [];
+            var domains = this.insights.domains || [];
+
+            var html = '';
+
+            if (patterns.length === 0) {
+                html += '<div class="insight-detail">Keine kritischen Muster erkannt</div>';
+            } else {
+                for (var i = 0; i < patterns.length; i++)
+                    {
+                    html += '<div class="insight-detail">' + patterns[i].title + '</div>';
+                }
+            }
+
+            // Domains anzeigen
+            if (domains.length > 0) {
+                var top = domains[0];
+                html += '<div class="insight-detail" style="margin-top:8px;">';
+                html += 'Top-Bereich: <strong>' + top.name + '</strong> (' + top.count + ', ' + top.share + '%)';
+                html += '</div>';
+            }
+
+            UI.setHtml('patternDetection', html);
+        },
+
+        // Empfehlungen rendern
+        renderRecommendations: function() {
+            var recs = this.insights.recommendations || [];
+            var html = '';
+
+            for (var i = 0; i < recs.length; i++) {
+                html += '<div class="insight-detail">';
+                html += recs[i].icon + ' ' + recs[i].text;
+                html += '</div>';
+            }
+
+            UI.setHtml('recommendations', html);
+        },
+
+        // Trend rendern
+        renderTrend: function() {
+            var risk = this.insights.risk;
+            if (!risk) return;
+
+            var trend = risk.score > 50 ? 'steigend' : 'stabil';
+            var icon = risk.score > 50 ? '📈' : '➡️';
+
+            var html = '<div class="insight-detail">';
+            html += icon + ' Trend: ' + trend;
+            html += '</div>';
+            html += '<div class="insight-detail">' + risk.totalCount + ' Events analysiert</div>';
+
+            UI.setHtml('trendForecast', html);
+        }
+    };
+
+    console.log('Teil 3 geladen: ChartManager, Analytics');
+
+// ENDE TEIL 3 - TEIL 4 FOLGT DIREKT
+ // ==========================================
+// TEIL 4 von 5: Filter, Render, DataManager
+// ==========================================
+
+    // ==========================================
+    // FILTER MANAGER
+    // ==========================================
+    window.FilterManager = {
+        // Filter anwenden
+        apply: function() {
+            var countryEl = document.getElementById('filterCountry');
+            var siteEl = document.getElementById('filterSite');
+            var typeEl = document.getElementById('filterType');
+
+            var country = countryEl ? countryEl.value : '__ALL__';
+            var site = siteEl ? siteEl.value : '__ALL__';
+            var type = typeEl ? typeEl.value : '__ALL__';
+
+            var filtered = [];
+
+            for (var i = 0; i < AppState.allData.length; i++) {
+                var row = AppState.allData[i];
+                var hm = AppState.headerMap;
+
+                var rowCountry = hm.country ? row[hm.country] : '';
+                var rowSite = hm.site ? row[hm.site] : '';
+                var rowType = hm.type ? row[hm.type] : '';
+
+                var match = true;
+
+                if (country !== '__ALL__' && rowCountry !== country) {
+                    match = false;
+                }
+                if (site !== '__ALL__' && rowSite !== site) {
+                    match = false;
+                }
+                if (type !== '__ALL__' && rowType !== type) {
+                    match = false;
+                }
+
+                if (match) {
+                    filtered.push(row);
+                }
+            }
+
+            AppState.currentData = filtered;
+            this.updateStatus();
+            Renderer.renderAll();
+        },
+
+        // Filter zuruecksetzen
+        reset: function() {
+            var countryEl = document.getElementById('filterCountry');
+            var siteEl = document.getElementById('filterSite');
+            var typeEl = document.getElementById('filterType');
+
+            if (countryEl) countryEl.value = '__ALL__';
+            if (siteEl) siteEl.value = '__ALL__';
+            if (typeEl) typeEl.value = '__ALL__';
+
+            this.apply();
+            UI.showToast(i18n.t('filter_reset'), 'success');
+        },
+
+        // Status aktualisieren
+        updateStatus: function() {
+            var current = AppState.currentData.length;
+            var total = AppState.allData.length;
+            var text = i18n.t('status_showing', { current: current, total: total });
+            UI.setText('filterStatus', text);
+        },
+
+        // Filter-Optionen aktualisieren
+        updateOptions: function() {
+            var countries = {};
+            var sites = {};
+            var types = {};
+            var hm = AppState.headerMap;
+
+            for (var i = 0; i < AppState.allData.length; i++) {
+                var row = AppState.allData[i];
+
+                if (hm.country && row[hm.country]) {
+                    countries[row[hm.country]] = true;
+                }
+                if (hm.site && row[hm.site]) {
+                    sites[row[hm.site]] = true;
+                }
+                if (hm.type && row[hm.type]) {
+                    types[row[hm.type]] = true;
+                }
+            }
+
+            this.fillSelect('filterCountry', Object.keys(countries).sort(), i18n.t('filter_all_countries'));
+            this.fillSelect('filterSite', Object.keys(sites).sort(), i18n.t('filter_all_sites'));
+            this.fillSelect('filterType', Object.keys(types).sort(), i18n.t('filter_all_types'));
+        },
+
+        // Select befuellen
+        fillSelect: function(selectId, values, placeholder) {
+            var select = document.getElementById(selectId);
+            if (!select) return;
+
+            var currentValue = select.value;
+            var html = '<option value="__ALL__">' + placeholder + '</option>';
+
+            for (var i = 0; i < values.length; i++) {
+                html += '<option value="' + Utils.escapeHtml(values[i]) + '">';
+                html += Utils.escapeHtml(values[i]);
+                html += '</option>';
+            }
+
+            select.innerHTML = html;
+
+            // Vorherigen Wert wiederherstellen wenn moeglich
+            var found = false;
+            for (var j = 0; j < values.length; j++) {
+                if (values[j] === currentValue) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                select.value = currentValue;
+            }
+        }
+    };
+
+    // ==========================================
+    // RENDERER
+    // ==========================================
+    window.Renderer = {
+        // Alles rendern
+        renderAll: function() {
+            this.renderKPIs();
+            this.renderTables();
+            this.renderCharts();
+            Analytics.analyze(AppState.currentData, AppState.headerMap);
+        },
+
+        // KPIs rendern
+        renderKPIs: function() {
+            var total = AppState.allData.length;
+            var current = AppState.currentData.length;
+            var hm = AppState.headerMap;
+
+            var countries = {};
+            var sites = {};
+            var types = {};
+
+            for (var i = 0; i < AppState.allData.length; i++) {
+                var row = AppState.allData[i];
+                if (hm.country && row[hm.country]) countries[row[hm.country]] = true;
+                if (hm.site && row[hm.site]) sites[row[hm.site]] = true;
+                if (hm.type && row[hm.type]) types[row[hm.type]] = true;
+            }
+
+            UI.setText('kpiTotal', total);
+            UI.setText('kpiFiltered', current + ' nach Filter');
+            UI.setText('kpiCountries', Object.keys(countries).length);
+            UI.setText('kpiSites', Object.keys(sites).length);
+            UI.setText('kpiTypes', Object.keys(types).length);
+        },
+
+        // Tabellen rendern
+        renderTables: function() {
+            var data = AppState.currentData;
+            var hm = AppState.headerMap;
+
+            // Leere Tabellen wenn keine Daten
+            if (data.length === 0) {
+                this.setTableEmpty('tableCountry', 2);
+                this.setTableEmpty('tableSite', 3);
+                this.setTableEmpty('tableType', 2);
+                return;
+            }
+
+            // Nach Land
+            var byCountry = Utils.groupAndCount(data, function(row) {
+                return hm.country ? row[hm.country] : '';
             });
+            this.fillTable('tableCountry', byCountry, ['key', 'count']);
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-            link.href = URL.createObjectURL(blob);
-            link.download = `security-events-${timestamp}.csv`;
-            link.click();
-
-            UI.showToast(`CSV exportiert (${DashboardState.currentData.length} Datensätze).`, 'success');
-
-            if (status) {
-                status.textContent = `✅ CSV exportiert (${DashboardState.currentData.length} Datensätze)`;
-                setTimeout(() => { status.style.display = 'none'; }, 3000);
-            }
-
-        } catch (error) {
-            console.error('CSV Export Error:', error);
-            UI.showToast('Fehler beim CSV-Export: ' + error.message, 'error');
-            if (status) {
-                status.textContent = '❌ Fehler beim CSV-Export';
-                setTimeout(() => { status.style.display = 'none'; }, 3000);
-            }
-        }
-    },
-
-    buildExecutiveNarrative(analytics) {
-        if (!analytics || !analytics.insights) return { summaryLines: [], actionLines: [] };
-
-        const risk = analytics.insights.risk;
-        const domainMix = analytics.insights.domainMix;
-        const trends = analytics.insights.trends || [];
-        const tp = analytics.insights.timePatterns;
-        const recs = analytics.insights.recommendations || [];
-        const summaryLines = [];
-        const actionLines = [];
-
-        if (risk) {
-            let introKey;
-            if (risk.level === 'HOCH') introKey = 'risk_intro_high';
-            else if (risk.level === 'MITTEL') introKey = 'risk_intro_medium';
-            else introKey = 'risk_intro_low';
-
-            summaryLines.push(i18n.t(introKey, { score: risk.score }));
-
-            let detailKey;
-            if (risk.level === 'HOCH') detailKey = 'risk_detail_high';
-            else if (risk.level === 'MITTEL') detailKey = 'risk_detail_medium';
-            else detailKey = 'risk_detail_low';
-
-            summaryLines.push(i18n.t(detailKey, { count: risk.highRiskEvents }));
-
-            if (risk.criticalTypes && risk.criticalTypes[0]) {
-                const ct = risk.criticalTypes[0];
-                summaryLines.push(i18n.t('risk_critical_type', {
-                    type: ct.key,
-                    count: ct.count
-                }));
-            }
-        }
-
-        if (domainMix && domainMix.byDomain && domainMix.byDomain.length) {
-            const top = domainMix.byDomain[0];
-            const sec = domainMix.byDomain.find(d => d.domain === 'Security');
-            const fm  = domainMix.byDomain.find(d => d.domain === 'FM');
-            const she = domainMix.byDomain.find(d => d.domain === 'SHE');
-
-            summaryLines.push(i18n.t('domain_main_line', {
-                domain: top.domain,
-                count: top.count,
-                share: top.share
-            }));
-
-            summaryLines.push(i18n.t('domain_distribution_line', {
-                secCount: sec ? sec.count : 0,
-                secShare: sec ? sec.share : 0,
-                fmCount: fm ? fm.count : 0,
-                fmShare: fm ? fm.share : 0,
-                sheCount: she ? she.count : 0,
-                sheShare: she ? she.share : 0
-            }));
-
-            if (sec && fm && she) {
-                const topRisk = [sec, fm, she].sort((a, b) => b.riskScore - a.riskScore)[0];
-                summaryLines.push(i18n.t('domain_risk_focus', {
-                    domain: topRisk.domain,
-                    score: topRisk.riskScore
-                }));
-            }
-        }
-
-        const riskTrendInsight = trends.find(t => t.metric === 'Gesamt-Risiko');
-        const volumeTrendInsight = trends.find(t => t.metric === 'Ereignis-Volumen');
-
-        if (riskTrendInsight || volumeTrendInsight) {
-            if (riskTrendInsight) {
-                let t = riskTrendInsight.forecast;
-                let trendKey;
-                if (t.includes('steigend')) trendKey = 'trend_risk_up';
-                else if (t.includes('fallend')) trendKey = 'trend_risk_down';
-                else trendKey = 'trend_risk_stable';
-
-                summaryLines.push(i18n.t('trend_risk_sentence', {
-                    trend: i18n.t(trendKey),
-                    confidence: riskTrendInsight.confidence
-                }));
-            }
-
-            if (volumeTrendInsight) {
-                const shortForecast = volumeTrendInsight.forecast.replace('Nächster Monat:', '').trim();
-                summaryLines.push(i18n.t('trend_volume_sentence', {
-                    forecast: shortForecast,
-                    confidence: volumeTrendInsight.confidence
-                }));
-            }
-        }
-
-        if (tp && tp.topHourBucket && tp.topWeekday) {
-            summaryLines.push(i18n.t('time_bucket_line', {
-                range: tp.topHourBucket.range,
-                count: tp.topHourBucket.count
-            }));
-            summaryLines.push(i18n.t('time_weekday_line', {
-                weekday: tp.topWeekday.name,
-                count: tp.topWeekday.count
-            }));
-            summaryLines.push(i18n.t('time_weekend_share', {
-                weekdayShare: tp.weekendVsWeekday.weekdayShare,
-                weekendShare: tp.weekendVsWeekday.weekendShare
-            }));
-        }
-
-        if (recs.length > 0) {
-            recs.slice(0, 3).forEach(rec => {
-                const title = i18n.current === 'de' ? rec.title : (rec.title_en || rec.title);
-                const action = i18n.current === 'de' ? rec.action : (rec.action_en || rec.action);
-                actionLines.push(`${title}: ${action}.`);
+            // Nach Ereignisart
+            var byType = Utils.groupAndCount(data, function(row) {
+                return hm.type ? row[hm.type] : '';
             });
+            this.fillTable('tableType', byType, ['key', 'count']);
+
+            // Nach Liegenschaft (mit Land)
+            var siteMap = {};
+            for (var i = 0; i < data.length; i++) {
+                var row = data[i];
+                var site = hm.site ? row[hm.site] : '';
+                var country = hm.country ? row[hm.country] : '';
+                var key = site + '||' + country;
+                siteMap[key] = (siteMap[key] || 0) + 1;
+            }
+
+            var bySite = [];
+            for (var k in siteMap) {
+                if (siteMap.hasOwnProperty(k)) {
+                    var parts = k.split('||');
+                    bySite.push({
+                        site: parts[0] || '(leer)',
+                        country: parts[1] || '(leer)',
+                        count: siteMap[k]
+                    });
+                }
+            }
+            bySite.sort(function(a, b) { return b.count - a.count; });
+            this.fillTable('tableSite', bySite, ['site', 'country', 'count']);
+        },
+
+        // Tabelle befuellen
+        fillTable: function(tableId, data, columns) {
+            var table = document.getElementById(tableId);
+            if (!table) return;
+
+            var tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            var html = '';
+            for (var i = 0; i < data.length; i++) {
+                html += '<tr>';
+                for (var c = 0; c < columns.length; c++) {
+                    var value = data[i][columns[c]];
+                    html += '<td>' + Utils.escapeHtml(value) + '</td>';
+                }
+                html += '</tr>';
+            }
+
+            tbody.innerHTML = html;
+        },
+
+        // Leere Tabelle
+        setTableEmpty: function(tableId, colspan) {
+            var table = document.getElementById(tableId);
+            if (!table) return;
+
+            var tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="empty-state">Keine Daten</td></tr>';
+        },
+
+        // Charts rendern
+        renderCharts: function() {
+            var data = AppState.currentData;
+            var hm = AppState.headerMap;
+
+            if (typeof Chart === 'undefined') {
+                console.warn('Chart.js nicht geladen');
+                return;
+            }
+
+            // Nach Land
+            var byCountry = Utils.groupAndCount(data, function(row) {
+                return hm.country ? row[hm.country] : '';
+            });
+            ChartManager.create('chartCountries', byCountry, 'bar');
+
+            // Nach Liegenschaft
+            var bySite = Utils.groupAndCount(data, function(row) {
+                return hm.site ? row[hm.site] : '';
+            });
+            ChartManager.create('chartSites', bySite, 'bar');
+
+            // Nach Typ
+            var byType = Utils.groupAndCount(data, function(row) {
+                return hm.type ? row[hm.type] : '';
+            });
+            ChartManager.create('chartTypes', byType, 'pie');
+
+            // Nach Domain
+            var domainCounts = { Security: 0, FM: 0, SHE: 0, Other: 0 };
+            for (var i = 0; i < data.length; i++) {
+                var domain = Utils.classifyDomain(data[i], hm);
+                domainCounts[domain]++;
+            }
+
+            var domainData = [];
+            for (var d in domainCounts) {
+                if (domainCounts.hasOwnProperty(d) && domainCounts[d] > 0) {
+                    domainData.push({ key: d, count: domainCounts[d] });
+                }
+            }
+            ChartManager.create('chartDomains', domainData, 'pie');
         }
+    };
 
-        return { summaryLines, actionLines };
-    },
+    // ==========================================
+    // DATA MANAGER
+    // ==========================================
+    window.DataManager = {
+        // Testdaten laden
+        loadTestData: function() {
+            console.log('Lade Testdaten...');
 
-    async toPDF() {
-        if (!DashboardState.currentData || DashboardState.currentData.length === 0) {
-            UI.showToast('Keine Daten zum PDF-Export vorhanden. Bitte Daten laden oder Filter anpassen.', 'error');
-            return;
+            try {
+                var parsed = Utils.parseCSV(TestData.csv);
+                AppState.allData = parsed.rows;
+                AppState.headerMap = Utils.createHeaderMap(parsed.headers);
+                AppState.currentData = AppState.allData.slice();
+
+                this.onDataLoaded('testdata', 'Testdaten');
+                UI.showToast(i18n.t('toast_testdata'), 'success');
+            } catch (e) {
+                console.error('Testdaten-Fehler:', e);
+                UI.showToast('Fehler: ' + e.message, 'error');
+            }
+        },
+
+        // CSV laden
+        loadCSV: function(file) {
+            var self = this;
+            console.log('Lade CSV:', file.name);
+
+            var reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    var text = e.target.result;
+                    var parsed = Utils.parseCSV(text);
+
+                    if (parsed.rows.length === 0) {
+                        throw new Error('CSV enthaelt keine Daten');
+                    }
+
+                    AppState.allData = parsed.rows;
+                    AppState.headerMap = Utils.createHeaderMap(parsed.headers);
+                    AppState.currentData = AppState.allData.slice();
+
+                    self.onDataLoaded('csv', file.name);
+                    UI.showToast(i18n.t('toast_csv_loaded', { name: file.name }), 'success');
+                } catch (err) {
+                    console.error('CSV-Fehler:', err);
+                    UI.showToast(i18n.t('toast_csv_error', { error: err.message }), 'error');
+                    UI.setText('fileStatus', 'Fehler: ' + err.message);
+                }
+            };
+
+            reader.onerror = function() {
+                UI.showToast('Datei konnte nicht gelesen werden', 'error');
+            };
+
+            reader.readAsText(file);
+        },
+
+        // Nach Daten-Laden
+        onDataLoaded: function(mode, name) {
+            var count = AppState.allData.length;
+
+            // Status aktualisieren
+            if (mode === 'testdata') {
+                UI.setText('fileStatus', i18n.t('status_testdata', { count: count }));
+                UI.setText('modeIndicator', 'Testdaten');
+            } else {
+                UI.setText('fileStatus', i18n.t('status_csv', { name: name, count: count }));
+                UI.setText('modeIndicator', 'CSV: ' + name);
+            }
+
+            UI.setText('recordCount', count + ' Datensaetze');
+
+            // Filter aktualisieren
+            FilterManager.updateOptions();
+            FilterManager.updateStatus();
+
+            // Risiko-Konfiguration aktualisieren
+            RiskConfigManager.render();
+
+            // Alles rendern
+            Renderer.renderAll();
         }
+    };
 
-        const status = document.getElementById('exportStatus');
-        if (status) {
-            status.style.display = 'block';
-            status.textContent = i18n.t('toast_pdf_start');
-        }
+    console.log('Teil 4 geladen: Filter, Render, DataManager');
 
-        const btnPdf = document.getElementById('exportPDF');
-        if (btnPdf) btnPdf.disabled = true;
+// ENDE TEIL 4 - TEIL 5 FOLGT DIREKT
+ // ==========================================
+// TEIL 5 von 5: Export, RiskConfig, Theme, Init
+// ==========================================
 
-        try {
+    // ==========================================
+    // EXPORT MANAGER
+    // ==========================================
+    window.ExportManager = {
+        // CSV exportieren
+        toCSV: function() {
+            var data = AppState.currentData;
+
+            if (!data || data.length === 0) {
+                UI.showToast(i18n.t('toast_no_data'), 'error');
+                return;
+            }
+
+            try {
+                var headers = Object.keys(data[0]);
+                var csv = headers.join(',') + '\n';
+
+                for (var i = 0; i < data.length; i++) {
+                    var row = data[i];
+                    var values = [];
+                    for (var h = 0; h < headers.length; h++) {
+                        var val = row[headers[h]] || '';
+                        val = String(val).replace(/"/g, '""');
+                        values.push('"' + val + '"');
+                    }
+                    csv += values.join(',') + '\n';
+                }
+
+                var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                var link = document.createElement('a');
+                var filename = 'security-events-' + Utils.dateForFilename() + '.csv';
+
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+
+                URL.revokeObjectURL(link.href);
+                UI.showToast(i18n.t('toast_csv_export'), 'success');
+            } catch (e) {
+                console.error('CSV-Export-Fehler:', e);
+                UI.showToast('Export-Fehler: ' + e.message, 'error');
+            }
+        },
+
+        // PDF exportieren
+        toPDF: function() {
+            var data = AppState.currentData;
+
+            if (!data || data.length === 0) {
+                UI.showToast(i18n.t('toast_no_data'), 'error');
+                return;
+            }
+
             if (typeof window.jspdf === 'undefined') {
-                throw new Error('jsPDF ist nicht geladen (prüfe Script-Tags)!');
+                UI.showToast('jsPDF nicht geladen', 'error');
+                return;
             }
 
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pageWidth  = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const marginX = 18;
-            const footerHeight = 12;
-            let yPos = 22;
-            let pageNumber = 1;
+            var btn = document.getElementById('exportPDF');
+            if (btn) btn.disabled = true;
 
-            const addFooter = () => {
+            UI.showToast(i18n.t('toast_pdf_start'), 'info');
+
+            try {
+                var jsPDF = window.jspdf.jsPDF;
+                var pdf = new jsPDF('p', 'mm', 'a4');
+
+                var pageWidth = pdf.internal.pageSize.getWidth();
+                var pageHeight = pdf.internal.pageSize.getHeight();
+                var margin = 15;
+                var yPos = 20;
+
+                // Header
+                pdf.setFillColor(0, 163, 122);
+                pdf.rect(0, 0, pageWidth, 28, 'F');
+
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFontSize(16);
+                pdf.text(i18n.t('pdf_title'), margin, 14);
+
+                pdf.setFontSize(10);
+                pdf.text(i18n.t('pdf_subtitle'), margin, 22);
+
+                var dateStr = Utils.formatDate(new Date());
+                var dateText = i18n.t('pdf_created', { date: dateStr });
+                pdf.text(dateText, pageWidth - margin - pdf.getTextWidth(dateText), 22);
+
+                // Content
+                yPos = 38;
+                pdf.setTextColor(0, 0, 0);
+                pdf.setFontSize(12);
+                pdf.text(i18n.t('section_summary'), margin, yPos);
+                yPos += 8;
+
+                // Key Facts
+                var hm = AppState.headerMap;
+                var countries = {};
+                var sites = {};
+                var types = {};
+
+                for (var i = 0; i < data.length; i++) {
+                    var row = data[i];
+                    if (hm.country && row[hm.country]) countries[row[hm.country]] = true;
+                    if (hm.site && row[hm.site]) sites[row[hm.site]] = true;
+                    if (hm.type && row[hm.type]) types[row[hm.type]] = true;
+                }
+
+                pdf.setFontSize(9);
+                pdf.setTextColor(80, 80, 80);
+                pdf.text(i18n.t('key_facts', {
+                    events: data.length,
+                    countries: Object.keys(countries).length,
+                    sites: Object.keys(sites).length,
+                    types: Object.keys(types).length
+                }), margin, yPos);
+                yPos += 12;
+
+                // Charts einfuegen
+                var addChart = function(canvasId, title) {
+                    var canvas = document.getElementById(canvasId);
+                    if (!canvas) return;
+
+                    if (yPos > pageHeight - 70) {
+                        pdf.addPage();
+                        yPos = 20;
+                    }
+
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(0, 0, 0);
+                    pdf.text(title, margin, yPos);
+                    yPos += 4;
+
+                    try {
+                        var imgData = canvas.toDataURL('image/png', 1.0);
+                        pdf.addImage(imgData, 'PNG', margin, yPos, pageWidth - 2 * margin, 45);
+                        yPos += 50;
+                    } catch (err) {
+                        console.warn('Chart-Export-Fehler:', err);
+                    }
+                };
+
+                addChart('chartCountries', i18n.t('chart_countries'));
+                addChart('chartTypes', i18n.t('chart_types'));
+
+                // Tabellen mit AutoTable
+                if (pdf.autoTable) {
+                    pdf.addPage();
+                    yPos = 20;
+
+                    pdf.setFontSize(12);
+                    pdf.setTextColor(0, 0, 0);
+                    pdf.text(i18n.t('section_overview'), margin, yPos);
+                    yPos += 8;
+
+                    // Nach Land
+                    var byCountry = Utils.groupAndCount(data, function(r) {
+                        return hm.country ? r[hm.country] : '';
+                    });
+
+                    pdf.autoTable({
+                        startY: yPos,
+                        head: [[i18n.t('col_country'), i18n.t('col_count')]],
+                        body: byCountry.map(function(item) {
+                            return [item.key || '(leer)', item.count];
+                        }),
+                        margin: { left: margin, right: margin },
+                        styles: { fontSize: 8 },
+                        headStyles: { fillColor: [0, 163, 122] }
+                    });
+
+                    yPos = pdf.lastAutoTable.finalY + 10;
+
+                    // Nach Typ
+                    var byType = Utils.groupAndCount(data, function(r) {
+                        return hm.type ? r[hm.type] : '';
+                    });
+
+                    pdf.autoTable({
+                        startY: yPos,
+                        head: [[i18n.t('col_type'), i18n.t('col_count')]],
+                        body: byType.map(function(item) {
+                            return [item.key || '(leer)', item.count];
+                        }),
+                        margin: { left: margin, right: margin },
+                        styles: { fontSize: 8 },
+                        headStyles: { fillColor: [0, 163, 122] }
+                    });
+                }
+
+                // Footer
                 pdf.setFontSize(8);
                 pdf.setTextColor(130, 130, 130);
-                const footerLeft = i18n.t('footer_left');
-                const footerRight = i18n.t('footer_page', { page: pageNumber });
-                pdf.text(footerLeft, marginX, pageHeight - 6);
-                const textWidth = pdf.getTextWidth(footerRight);
-                pdf.text(footerRight, pageWidth - marginX - textWidth, pageHeight - 6);
-            };
+                pdf.text(i18n.t('footer_text'), margin, pageHeight - 8);
 
-            const newPage = () => {
-                addFooter();
-                pdf.addPage();
-                pageNumber += 1;
-                yPos = 22;
-            };
+                // Speichern
+                var filename = i18n.t('pdf_filename', { date: Utils.dateForFilename() });
+                pdf.save(filename);
 
-            const ensureSpace = (neededHeight) => {
-                if (yPos + neededHeight > pageHeight - footerHeight) {
-                    newPage();
-                }
-            };
-
-            let analytics;
-            try {
-                analytics = new SecurityAnalytics(DashboardState.currentData, DashboardState.headerMap);
-                analytics.analyze();
+                UI.showToast(i18n.t('toast_pdf_done'), 'success');
             } catch (e) {
-                console.warn('Analytics konnten nicht berechnet werden:', e);
+                console.error('PDF-Fehler:', e);
+                UI.showToast(i18n.t('toast_pdf_error', { error: e.message }), 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+    };
+
+    // ==========================================
+    // RISIKO-KONFIGURATION
+    // ==========================================
+    window.RiskConfigManager = {
+        render: function() {
+            var container = document.getElementById('riskConfig');
+            if (!container) return;
+
+            var hm = AppState.headerMap;
+            var typesMap = {};
+
+            for (var i = 0; i < AppState.allData.length; i++) {
+                var row = AppState.allData[i];
+                if (hm.type && row[hm.type]) {
+                    typesMap[row[hm.type]] = true;
+                }
             }
 
-            const narrative = this.buildExecutiveNarrative(analytics);
-            const risk      = analytics?.insights?.risk;
-            const domainMix = analytics?.insights?.domainMix;
+            var types = Object.keys(typesMap).sort();
 
-            const totalEvents   = DashboardState.currentData.length;
-            const totalCountries = new Set(
-                DashboardState.currentData
-                    .map(r => DashboardState.headerMap.country ? (r[DashboardState.headerMap.country] || '').trim() : '')
-                    .filter(Boolean)
-            ).size;
-            const totalSites = new Set(
-                DashboardState.currentData
-                    .map(r => DashboardState.headerMap.site ? (r[DashboardState.headerMap.site] || '').trim() : '')
-                    .filter(Boolean)
-            ).size;
-            const totalTypes = new Set(
-                DashboardState.currentData
-                    .map(r => DashboardState.headerMap.type ? (r[DashboardState.headerMap.type] || '').trim() : '')
-                    .filter(Boolean)
-            ).size;
+            if (types.length === 0) {
+                container.innerHTML = '<div class="status">' + i18n.t('risk_no_config') + '</div>';
+                return;
+            }
 
-            // Titelbalken
-            pdf.setFillColor(0, 163, 122);
-            pdf.rect(0, 0, pageWidth, 30, 'F');
+            var html = '';
+            for (var t = 0; t < types.length; t++) {
+                var type = types[t];
+                var weight = CONFIG.riskWeights[type] || 3;
 
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(18);
-            pdf.text(i18n.t('pdf_title'), marginX, 16);
+                html += '<div class="risk-config-row">';
+                html += '<span class="risk-config-label" title="' + Utils.escapeHtml(type) + '">';
+                html += Utils.escapeHtml(type);
+                html += '</span>';
+                html += '<input type="number" class="risk-config-input" ';
+                html += 'min="1" max="10" value="' + weight + '" ';
+                html += 'data-type="' + Utils.escapeHtml(type) + '">';
+                html += '</div>';
+            }
 
-            pdf.setFontSize(11);
-            pdf.text(i18n.t('pdf_subtitle'), marginX, 23);
+            container.innerHTML = html;
 
-            const now = new Date();
-            const dateStr = now.toLocaleDateString(i18n.current === 'de' ? 'de-DE' : 'en-GB', {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit'
-            });
-            const dateText = i18n.t('pdf_created_at', { date: dateStr });
-            const dateWidth = pdf.getTextWidth(dateText);
-            pdf.text(dateText, pageWidth - marginX - dateWidth, 23);
+            // Event Listener
+            var inputs = container.querySelectorAll('.risk-config-input');
+            for (var j = 0; j < inputs.length; j++) {
+                inputs[j].addEventListener('change', function(e) {
+                    var input = e.target;
+                    var type = input.getAttribute('data-type');
+                    var value = parseInt(input.value, 10);
 
-            // Executive Summary
-            yPos = 40;
-            pdf.setTextColor(0, 0, 0);
-            pdf.setFontSize(14);
-            pdf.text(i18n.t('section_executive_summary'), marginX, yPos);
-            yPos += 7;
+                    if (isNaN(value) || value < 1) value = 1;
+                    if (value > 10) value = 10;
+                    input.value = value;
 
-            pdf.setFontSize(9);
-            pdf.setTextColor(80, 80, 80);
+                    CONFIG.riskWeights[type] = value;
+                    Analytics.analyze(AppState.currentData, AppState.headerMap);
+                });
+            }
+        }
+    };
 
-            const keyFacts = i18n.t('key_facts_line', {
-                events: totalEvents,
-                countries: totalCountries,
-                sites: totalSites,
-                types: totalTypes
-            });
-            pdf.text(keyFacts, marginX, yPos);
-            yPos += 7;
+    // ==========================================
+    // THEME MANAGER
+    // ==========================================
+    window.ThemeManager = {
+        init: function() {
+            var saved = localStorage.getItem('dashboard-theme') || 'light';
+            this.set(saved);
+        },
 
-            const execLines = narrative.summaryLines.slice(0, 6);
-            const splitExecLines = pdf.splitTextToSize(execLines.join(' '), pageWidth - 2 * marginX);
-            splitExecLines.forEach(line => {
-                ensureSpace(5);
-                pdf.text(line, marginX, yPos);
-                yPos += 4.5;
-            });
+        toggle: function() {
+            var current = document.documentElement.getAttribute('data-theme') || 'light';
+            var newTheme = current === 'dark' ? 'light' : 'dark';
+            this.set(newTheme);
+        },
 
-            yPos += 4;
+        set: function(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('dashboard-theme', theme);
+            console.log('Theme:', theme);
+        }
+    };
 
-            if (domainMix && domainMix.byDomain && domainMix.byDomain.length) {
-                ensureSpace(20);
-                pdf.setFontSize(11);
-                pdf.setTextColor(0, 0, 0);
-                pdf.text(i18n.t('section_domain_focus'), marginX, yPos);
-                yPos += 5;
+    // ==========================================
+    // APP INITIALISIERUNG
+    // ==========================================
+    window.App = {
+        init: function() {
+            console.log('Dashboard wird initialisiert...');
 
-                pdf.setFontSize(9);
-                pdf.setTextColor(80, 80, 80);
-                const dm = domainMix.byDomain;
-                dm.slice(0, 3).forEach(d => {
-                    const line = `• ${d.domain}: ${d.count} (${d.share}%, ~${d.riskScore} Punkte)`;
-                    ensureSpace(5);
-                    pdf.text(line, marginX, yPos);
-                    yPos += 4;
+            // Theme laden
+            ThemeManager.init();
+
+            // Event Listener
+            this.setupEventListeners();
+
+            // Initial-Status
+            UI.setText('filterStatus', i18n.t('status_no_data'));
+
+            AppState.initialized = true;
+            console.log('Dashboard bereit!');
+        },
+
+        setupEventListeners: function() {
+            // Testdaten laden
+            var loadBtn = document.getElementById('loadTestData');
+            if (loadBtn) {
+                loadBtn.addEventListener('click', function() {
+                    DataManager.loadTestData();
                 });
             }
 
-            // Neue Seite: AI Insights
-            newPage();
-
-            pdf.setTextColor(0, 0, 0);
-            pdf.setFontSize(14);
-            pdf.text(i18n.t('section_ai_insights'), marginX, yPos);
-            yPos += 7;
-
-            pdf.setFontSize(9);
-            pdf.setTextColor(90, 90, 90);
-            pdf.text(i18n.t('desc_ai_insights'), marginX, yPos);
-            yPos += 7;
-
-            if (risk) {
-                ensureSpace(30);
-                pdf.setFontSize(11);
-                pdf.setTextColor(0, 0, 0);
-                pdf.text(i18n.t('section_risk_and_domain'), marginX, yPos);
-                yPos += 5;
-
-                pdf.setFontSize(9);
-                pdf.setTextColor(80, 80, 80);
-
-                const riskTextParts = [];
-                let introKey;
-                if (risk.level === 'HOCH') introKey = 'risk_intro_high';
-                else if (risk.level === 'MITTEL') introKey = 'risk_intro_medium';
-                else introKey = 'risk_intro_low';
-
-                riskTextParts.push(i18n.t(introKey, { score: risk.score }));
-                riskTextParts.push(i18n.t('risk_detail_high', { count: risk.highRiskEvents }));
-                if (risk.criticalTypes && risk.criticalTypes[0]) {
-                    const ct = risk.criticalTypes[0];
-                    riskTextParts.push(i18n.t('risk_critical_type', { type: ct.key, count: ct.count }));
-                }
-
-                const riskBlock = pdf.splitTextToSize(riskTextParts.join(' '), pageWidth - 2 * marginX);
-                riskBlock.forEach(line => {
-                    ensureSpace(5);
-                    pdf.text(line, marginX, yPos);
-                    yPos += 4.5;
-                });
-
-                if (domainMix && domainMix.byDomain && domainMix.byDomain.length) {
-                    yPos += 4;
-                    const dm = domainMix.byDomain;
-                    const sec = dm.find(d => d.domain === 'Security');
-                    const fm  = dm.find(d => d.domain === 'FM');
-                    const she = dm.find(d => d.domain === 'SHE');
-
-                    const dmLines = [];
-
-                    const top = dm[0];
-                    dmLines.push(i18n.t('domain_main_line', {
-                        domain: top.domain,
-                        count: top.count,
-                        share: top.share
-                    }));
-
-                    dmLines.push(i18n.t('domain_distribution_line', {
-                        secCount: sec ? sec.count : 0,
-                        secShare: sec ? sec.share : 0,
-                        fmCount: fm ? fm.count : 0,
-                        fmShare: fm ? fm.share : 0,
-                        sheCount: she ? she.count : 0,
-                        sheShare: she ? she.share : 0
-                    }));
-
-                    const dmText = pdf.splitTextToSize(dmLines.join(' '), pageWidth - 2 * marginX);
-                    dmText.forEach(line => {
-                        ensureSpace(5);
-                        pdf.text(line, marginX, yPos);
-                        yPos += 4.5;
-                    });
-                }
-            }
-
-            const tp = analytics?.insights?.timePatterns;
-            const trends = analytics?.insights?.trends || [];
-
-            if (tp || (trends && trends.length)) {
-                yPos += 6;
-                ensureSpace(30);
-                pdf.setFontSize(11);
-                pdf.setTextColor(0, 0, 0);
-                pdf.text(i18n.t('section_time_and_trends'), marginX, yPos);
-                yPos += 5;
-
-                pdf.setFontSize(9);
-                pdf.setTextColor(80, 80, 80);
-
-                if (tp && tp.topHourBucket && tp.topWeekday) {
-                    const timeLines = [
-                        i18n.t('time_bucket_line', {
-                            range: tp.topHourBucket.range,
-                            count: tp.topHourBucket.count
-                        }),
-                        i18n.t('time_weekday_line', {
-                            weekday: tp.topWeekday.name,
-                            count: tp.topWeekday.count
-                        }),
-                        i18n.t('time_weekend_share', {
-                            weekdayShare: tp.weekendVsWeekday.weekdayShare,
-                            weekendShare: tp.weekendVsWeekday.weekendShare
-                        })
-                    ];
-                    const tt = pdf.splitTextToSize(timeLines.join(' '), pageWidth - 2 * marginX);
-                    tt.forEach(line => {
-                        ensureSpace(5);
-                        pdf.text(line, marginX, yPos);
-                        yPos += 4.5;
-                    });
-                }
-
-                if (trends && trends.length) {
-                    yPos += 4;
-                    const riskTrendInsight2 = trends.find(t => t.metric === 'Gesamt-Risiko');
-                    const volumeTrendInsight2 = trends.find(t => t.metric === 'Ereignis-Volumen');
-
-                    const trendParts = [];
-                    if (riskTrendInsight2) {
-                        let t = riskTrendInsight2.forecast;
-                        let trendKey;
-                        if (t.includes('steigend')) trendKey = 'trend_risk_up';
-                        else if (t.includes('fallend')) trendKey = 'trend_risk_down';
-                        else trendKey = 'trend_risk_stable';
-
-                        trendParts.push(i18n.t('trend_risk_sentence', {
-                            trend: i18n.t(trendKey),
-                            confidence: riskTrendInsight2.confidence
-                        }));
+            // CSV laden
+            var fileInput = document.getElementById('fileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    var file = e.target.files && e.target.files[0];
+                    if (file) {
+                        DataManager.loadCSV(file);
                     }
-                    if (volumeTrendInsight2) {
-                        const shortForecast = volumeTrendInsight2.forecast.replace('Nächster Monat:', '').trim();
-                        trendParts.push(i18n.t('trend_volume_sentence', {
-                            forecast: shortForecast,
-                            confidence: volumeTrendInsight2.confidence
-                        }));
-                    }
-
-                    if (trendParts.length) {
-                        const trText = pdf.splitTextToSize(trendParts.join(' '), pageWidth - 2 * marginX);
-                        trText.forEach(line => {
-                            ensureSpace(5);
-                            pdf.text(line, marginX, yPos);
-                            yPos += 4.5;
-                        });
-                    }
-                }
-            }
-
-            const actionLines = narrative.actionLines;
-            if (actionLines && actionLines.length) {
-                yPos += 8;
-                ensureSpace(30);
-                pdf.setFontSize(11);
-                pdf.setTextColor(0, 0, 0);
-                pdf.text(i18n.t('section_actions'), marginX, yPos);
-                yPos += 5;
-
-                pdf.setFontSize(9);
-                pdf.setTextColor(80, 80, 80);
-
-                const combined = actionLines.join(' ');
-                const text = pdf.splitTextToSize(combined, pageWidth - 2 * marginX);
-                text.forEach(line => {
-                    ensureSpace(5);
-                    pdf.text(i18n.t('actions_bullet_prefix') + line, marginX, yPos);
-                    yPos += 4.5;
                 });
             }
 
-            // Visual Analytics: Charts als Bilder
-            newPage();
+            // Filter
+            var filterCountry = document.getElementById('filterCountry');
+            var filterSite = document.getElementById('filterSite');
+            var filterType = document.getElementById('filterType');
 
-            pdf.setTextColor(0, 0, 0);
-            pdf.setFontSize(14);
-            pdf.text(i18n.t('section_visual_analytics'), marginX, yPos);
-            yPos += 7;
-
-            pdf.setFontSize(9);
-            pdf.setTextColor(90, 90, 90);
-            pdf.text(i18n.t('desc_visual_analytics'), marginX, yPos);
-            yPos += 6;
-
-            const addChart = (selector, titleKey) => {
-                const container = document.querySelector(selector);
-                if (!container) return;
-                const canvas = container.querySelector('canvas');
-                if (!canvas) return;
-
-                const imgData = canvas.toDataURL('image/png', 1.0);
-                const imgHeight = 60;
-                const imgWidth = pageWidth - 2 * marginX;
-
-                ensureSpace(imgHeight + 12);
-
-                pdf.setFontSize(11);
-                pdf.setTextColor(0, 0, 0);
-                pdf.text(i18n.t(titleKey), marginX, yPos);
-                yPos += 4;
-
-                pdf.addImage(imgData, 'PNG', marginX, yPos, imgWidth, imgHeight);
-                yPos += imgHeight + 6;
-            };
-
-            addChart('#chartCountries', 'chart_countries_title');
-            addChart('#chartSites', 'chart_sites_title');
-            addChart('#chartTypes', 'chart_types_title');
-            addChart('#chartDomains', 'chart_domains_title');
-
-            // ggf. noch Tabellen (aggregiert & Detail) analog zu deiner alten Version
-
-            addFooter();
-
-            const nowForName = new Date();
-            const dateForName =
-                nowForName.getFullYear() + '-' +
-                String(nowForName.getMonth() + 1).padStart(2, '0') + '-' +
-                String(nowForName.getDate()).padStart(2, '0');
-
-            const filename = i18n.t('pdf_filename', { date: dateForName });
-            pdf.save(filename);
-
-            UI.showToast(i18n.t('toast_pdf_success', { file: filename }), 'success');
-
-            if (status) {
-                status.textContent = i18n.t('toast_pdf_success', { file: filename });
-                setTimeout(() => { status.style.display = 'none'; }, 4000);
+            if (filterCountry) {
+                filterCountry.addEventListener('change', function() {
+                    FilterManager.apply();
+                });
+            }
+            if (filterSite) {
+                filterSite.addEventListener('change', function() {
+                    FilterManager.apply();
+                });
+            }
+            if (filterType) {
+                filterType.addEventListener('change', function() {
+                    FilterManager.apply();
+                });
             }
 
-        } catch (error) {
-            console.error('PDF Error:', error);
-            UI.showToast(i18n.t('toast_pdf_error', { error: error.message }), 'error');
-            if (status) {
-                status.textContent = i18n.t('toast_pdf_error', { error: error.message });
-                setTimeout(() => { status.style.display = 'none'; }, 5000);
+            var resetBtn = document.getElementById('resetFilters');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function() {
+                    FilterManager.reset();
+                });
             }
-        } finally {
-            const btnPdf = document.getElementById('exportPDF');
-            if (btnPdf) btnPdf.disabled = false;
+
+            // Export
+            var csvBtn = document.getElementById('exportCSV');
+            if (csvBtn) {
+                csvBtn.addEventListener('click', function() {
+                    ExportManager.toCSV();
+                });
+            }
+
+            var pdfBtn = document.getElementById('exportPDF');
+            if (pdfBtn) {
+                pdfBtn.addEventListener('click', function() {
+                    ExportManager.toPDF();
+                });
+            }
+
+            // Theme
+            var themeBtn = document.getElementById('themeToggle');
+            if (themeBtn) {
+                themeBtn.addEventListener('click', function() {
+                    ThemeManager.toggle();
+                });
+            }
+
+            // Sprache
+            var langSelect = document.getElementById('reportLanguage');
+            if (langSelect) {
+                langSelect.addEventListener('change', function(e) {
+                    i18n.set(e.target.value);
+                });
+            }
+
+            console.log('Event Listener registriert');
         }
+    };
+
+    // ==========================================
+    // START
+    // ==========================================
+    if (document.readyState === 'loading') {
+        document.
+            addEventListener('DOMContentLoaded', function() {
+            App.init();
+        });
+    } else {
+        App.init();
     }
-};
-// =============================================
-// DRILLDOWN MANAGER
-// =============================================
-const DrilldownManager = {
-    showModal(title, infoHtml) {
-        const modal = document.getElementById('drilldownModal');
-        if (!modal) return;
-        document.getElementById('drilldownTitle').textContent = title;
-        document.getElementById('drilldownInfo').innerHTML = infoHtml || '';
-        modal.style.display = 'flex';
-    },
 
-    hideModal() {
-        const modal = document.getElementById('drilldownModal');
-        if (!modal) return;
-        modal.style.display = 'none';
-    },
+    // Error Handler
+    window.onerror = function(msg, url, line, col, error) {
+        console.error('Fehler:', msg, 'Zeile:', line);
+        return false;
+    };
 
-    renderEventTable(events) {
-        const thead = document.getElementById('drilldownThead');
-        const tbody = document.getElementById('drilldownTbody');
+    console.log('Teil 5 geladen: Export, RiskConfig, Theme, Init');
+    console.log('=== app.js vollstaendig geladen ===');
 
-        thead.innerHTML = `
-            <tr>
-                <th>Datum/Zeit</th>
-                <th>Land</th>
-                <th>Liegenschaft</th>
-                <th>Ereignisart</th>
-            </tr>
-        `;
-        tbody.innerHTML = '';
-
-        if (!events.length) {
-            tbody.innerHTML = `<tr><td colspan="4" class="empty-state">
-                <strong>Keine Daten</strong>
-                <span>Für diese Auswahl konnten keine Ereignisse gefunden werden.</span>
-            </td></tr>`;
-            return;
-        }
-
-        const h = DashboardState.headerMap;
-        events.forEach(row => {
-            const date = h.date ? (row[h.date] || '') : '';
-            const time = h.time ? (row[h.time] || '') : '';
-            const land = h.country ? (row[h.country] || '') : '';
-            const site = h.site ? (row[h.site] || '') : '';
-            const type = h.type ? (row[h.type] || '') : '';
-
-            const dateTime = (date + ' ' + time).trim();
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>{dateTime}</td>
-                <td>{land}</td>
-                <td>{site}</td>
-                <td>{type}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    },
-
-    showTotalEvents() {
-        const events = DashboardState.currentData;
-        this.renderEventTable(events);
-        this.showModal(
-            'Alle Ereignisse (nach aktuellem Filter)',
-            `${events.length} Ereignisse werden angezeigt.`
-        );
-    },
-
-    showCountriesOverview() {
-        const h = DashboardState.headerMap;
-        const thead = document.getElementById('drilldownThead');
-        const tbody = document.getElementById('drilldownTbody');
-
-        const byCountry = Utils.groupAndCount(DashboardState.currentData, row =>
-            h.country ? row[h.country] : ''
-        );
-
-        thead.innerHTML = `
-            <tr>
-                <th>Land</th>
-                <th>Anzahl Ereignisse</th>
-            </tr>
-        `;
-        tbody.innerHTML = '';
-
-        byCountry.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.dataset.country = item.key || '';
-            tr.innerHTML = `
-                <td>{item.key || '(leer)'}</td>
-                <td>{item.count}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        this.showModal(
-            'Länderübersicht (nach aktuellem Filter)',
-            `${byCountry.length} Länder mit Ereignissen`
-        );
-    },
-
-    showSitesOverview() {
-        const h = DashboardState.headerMap;
-        const tbody = document.getElementById('drilldownTbody');
-        const thead = document.getElementById('drilldownThead');
-
-        const siteMap = new Map();
-        DashboardState.currentData.forEach(row => {
-            const site = h.site ? (row[h.site] || '') : '';
-            const country = h.country ? (row[h.country] || '') : '';
-            const key = `${site}||${country}`;
-            siteMap.set(key, (siteMap.get(key) || 0) + 1);
-        });
-
-        const siteArray = Array.from(siteMap.entries())
-            .map(([key, count]) => {
-                const [site, country] = key.split('||');
-                return { site: site || '(leer)', country: country || '(leer)', count };
-            })
-            .sort((a, b) => b.count - a.count);
-
-        thead.innerHTML = `
-            <tr>
-                <th>Liegenschaft</th>
-                <th>Land</th>
-                <th>Anzahl Ereignisse</th>
-            </tr>
-        `;
-        tbody.innerHTML = '';
-
-        siteArray.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.dataset.site = item.site;
-            tr.innerHTML = `
-                <td>{item.site}</td>
-                <td>{item.country}</td>
-                <td>{item.count}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        this.showModal(
-            'Liegenschaften (nach aktuellem Filter)',
-            `${siteArray.length} Liegenschaften mit Ereignissen`
-        );
-    },
-
-    showTypesOverview() {
-        const h = DashboardState.headerMap;
-        const thead = document.getElementById('drilldownThead');
-        const tbody = document.getElementById('drilldownTbody');
-
-        const byType = Utils.groupAndCount(DashboardState.currentData, row =>
-            h.type ? row[h.type] : ''
-        );
-
-        thead.innerHTML = `
-            <tr>
-                <th>Ereignisart</th>
-                <th>Anzahl Ereignisse</th>
-            </tr>
-        `;
-        tbody.innerHTML = '';
-
-        byType.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.dataset.type = item.key || '';
-            tr.innerHTML = `
-                <td>{item.key || '(leer)'}</td>
-                <td>{item.count}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        this.showModal(
-            'Ereignisarten (nach aktuellem Filter)',
-            `${byType.length} Ereignisarten`
-        );
-    },
-
-    showEventsForCountry(country) {
-        const h = DashboardState.headerMap;
-        const events = DashboardState.currentData.filter(row =>
-            h.country && row[h.country] === country
-        );
-        this.renderEventTable(events);
-        this.showModal(
-            `Ereignisse für Land: {country}`,
-            `${events.length} Ereignisse`
-        );
-    },
-
-    showEventsForSite(site) {
-        const h = DashboardState.headerMap;
-        const events = DashboardState.currentData.filter(row =>
-            h.site && row[h.site] === site
-        );
-        this.renderEventTable(events);
-        this.showModal(
-            `Ereignisse für Liegenschaft: {site}`,
-            `${events.length} Ereignisse`
-        );
-    },
-
-    showEventsForType(type) {
-        const h = DashboardState.headerMap;
-        const events = DashboardState.currentData.filter(row =>
-            h.type && row[h.type] === type
-        );
-        this.renderEventTable(events);
-        this.showModal(
-            `Ereignisse für Ereignisart: {type}`,
-            `${events.length} Ereignisse`
-        );
-    }
-};
-
-// =============================================
-// FILTER MANAGER
-// =============================================
-const FilterManager = {
-    apply() {
-        if (!DashboardState.allData || DashboardState.allData.length === 0) {
-            DashboardState.currentData = [];
-            this.updateStatus();
-            RenderManager.renderAll();
-            return;
-        }
-
-        const country = document.getElementById('filterCountry').value;
-        const site = document.getElementById('filterSite').value;
-        const type = document.getElementById('filterType').value;
-
-        DashboardState.currentData = DashboardState.allData.filter(row => {
-            const rowCountry = DashboardState.headerMap.country ? row[DashboardState.headerMap.country] : '';
-            const rowSite = DashboardState.headerMap.site ? row[DashboardState.headerMap.site] : '';
-            const rowType = DashboardState.headerMap.type ? row[DashboardState.headerMap.type] : '';
-
-            if (country !== '__ALL__' && rowCountry !== country) return false;
-            if (site !== '__ALL__' && rowSite !== site) return false;
-            if (type !== '__ALL__' && rowType !== type) return false;
-            return true;
-        });
-
-        this.updateStatus();
-        RenderManager.renderAll();
-        console.log(`🔍 Filter applied: {DashboardState.currentData.length}/${DashboardState.allData.length} records`);
-    },
-
-    reset() {
-        document.getElementById('filterCountry').value = '__ALL__';
-        document.getElementById('filterSite').value = '__ALL__';
-        document.getElementById('filterType').value = '__ALL__';
-        this.apply();
-    },
-
-    updateStatus() {
-        const status = document.getElementById('filterStatus');
-        const activeFilters = [];
-
-        const country = document.getElementById('filterCountry').value;
-        const site = document.getElementById('filterSite').value;
-        const type = document.getElementById('filterType').value;
-
-        if (country !== '__ALL__') activeFilters.push(`Land: {country}`);
-        if (site !== '__ALL__') activeFilters.push(`Liegenschaft: {site}`);
-        if (type !== '__ALL__') activeFilters.push(`Ereignisart: {type}`);
-
-        let text;
-        if (activeFilters.length === 0) {
-            text = 'Keine Filter aktiv (zeige alle Datensätze)';
-            status.className = 'status';
-        } else {
-            text = `Aktive Filter: {activeFilters.join(' | ')}`;
-            status.className = 'status active-filters';
-        }
-
-        const total = DashboardState.allData.length;
-        const current = DashboardState.currentData.length;
-        text += `  |  Zeige {current} von {total} Datensätzen`;
-
-        status.textContent = text;
-    },
-
-    updateSelectOptions(selectId, values, placeholder) {
-        const select = document.getElementById(selectId);
-        const currentValue = select.value;
-
-        select.innerHTML = `<option value="__ALL__">{placeholder}</option>`;
-        values.forEach(value => {
-            select.innerHTML += `<option value="${value}">{value}</option>`;
-        });
-
-        if (values.includes(currentValue)) {
-            select.value = currentValue;
-        }
-    }
-};
-
-// =============================================
-// RENDER MANAGER
-// =============================================
-const RenderManager = {
-    renderAll() {
-        console.log('🎨 Rendering dashboard...');
-        this.renderKPIs();
-        this.renderFilters();
-        this.renderTables();
-        this.renderCharts();
-        this.runAnalytics();
-    },
-
-    renderKPIs() {
-        const total = DashboardState.allData.length;
-        const current = DashboardState.currentData.length;
-
-        document.getElementById('kpiTotalEvents').textContent = total;
-        document.getElementById('kpiTotalEventsSub').textContent = `${current} nach Filter`;
-
-        const countries = new Set();
-        const sites = new Set();
-        const types = new Set();
-
-        DashboardState.allData.forEach(row => {
-            if (DashboardState.headerMap.country && row[DashboardState.headerMap.country]) {
-                countries.add(row[DashboardState.headerMap.country].trim());
-            }
-            if (DashboardState.headerMap.site && row[DashboardState.headerMap.site]) {
-                sites.add(row[DashboardState.headerMap.site].trim());
-            }
-            if (DashboardState.headerMap.type && row[DashboardState.headerMap.type]) {
-                types.add(row[DashboardState.headerMap.type].trim());
-            }
-        });
-
-        document.getElementById('kpiCountries').textContent = countries.size;
-        document.getElementById('kpiSites').textContent = sites.size;
-        document.getElementById('kpiTypes').textContent = types.size;
-    },
-
-    renderFilters() {
-        const countries = [...new Set(DashboardState.allData
-            .map(row => DashboardState.headerMap.country ? row[DashboardState.headerMap.country].trim() : '')
-            .filter(Boolean))].sort();
-
-        const sites = [...new Set(DashboardState.allData
-            .map(row => DashboardState.headerMap.site ? row[DashboardState.headerMap.site].trim() : '')
-            .filter(Boolean))].sort();
-
-        const types = [...new Set(DashboardState.allData
-            .map(row => DashboardState.headerMap.type ? row[DashboardState.headerMap.type].trim() : '')
-            .filter(Boolean))].sort();
-
-        FilterManager.updateSelectOptions('filterCountry', countries, 'Alle Länder');
-        FilterManager.updateSelectOptions('filterSite', sites, 'Alle Liegenschaften');
-        FilterManager.updateSelectOptions('filterType', types, 'Alle Ereignisarten');
-    },
-
-    renderTables() {
-        if (DashboardState.currentData.length === 0) {
-            document.querySelector('#tableByCountry tbody').innerHTML =
-                '<tr><td colspan="2" class="empty-state"><strong>Keine Daten</strong><span>Bitte laden Sie Daten oder passen Sie die Filter an.</span></td></tr>';
-            document.querySelector('#tableBySite tbody').innerHTML =
-                '<tr><td colspan="3" class="empty-state"><strong>Keine Daten</strong><span>Bitte laden Sie Daten oder passen Sie die Filter an.</span></td></tr>';
-            document.querySelector('#tableByType tbody').innerHTML =
-                '<tr><td colspan="2" class="empty-state"><strong>Keine Daten</strong><span>Bitte laden Sie Daten oder passen Sie die Filter an.</span></td></tr>';
-            return;
-        }
-
-        const byCountry = Utils.groupAndCount(DashboardState.currentData, row =>
-            DashboardState.headerMap.country ? row[DashboardState.headerMap.country] : '');
-        const bySite = Utils.groupAndCount(DashboardState.currentData, row =>
-            DashboardState.headerMap.site ? row[DashboardState.headerMap.site] : '');
-        const byType = Utils.groupAndCount(DashboardState.currentData, row =>
-            DashboardState.headerMap.type ? row[DashboardState.headerMap.type] : '');
-
-        const countryTbody = document.querySelector('#tableByCountry tbody');
-        countryTbody.innerHTML = byCountry.map(item =>
-            `<tr data-country="${item.key || ''}">
-                <td>{item.key || '(leer)'}</td>
-                <td>{item.count}</td>
-            </tr>`
-        ).join('');
-
-        const siteMap = new Map();
-        DashboardState.currentData.forEach(row => {
-            const site = DashboardState.headerMap.site ? row[DashboardState.headerMap.site] : '';
-            const country = DashboardState.headerMap.country ? row[DashboardState.headerMap.country] : '';
-            const key = `${site}||${country}`;
-            siteMap.set(key, (siteMap.get(key) || 0) + 1);
-        });
-
-        const siteArray = Array.from(siteMap.entries())
-            .map(([key, count]) => {
-                const [site, country] = key.split('||');
-                return { site: site || '(leer)', country: country || '(leer)', count };
-            })
-            .sort((a, b) => b.count - a.count);
-
-        const siteTbody = document.querySelector('#tableBySite tbody');
-        siteTbody.innerHTML = siteArray.map(item =>
-            `<tr data-site="${item.site}">
-                <td>{item.site}</td>
-                <td>{item.country}</td>
-                <td>{item.count}</td>
-            </tr>`
-        ).join('');
-
-        const typeTbody = document.querySelector('#tableByType tbody');
-        typeTbody.innerHTML = byType.map(item =>
-            `<tr data-type="${item.key || ''}">
-                <td>{item.key || '(leer)'}</td>
-                <td>{item.count}</td>
-            </tr>`
-        ).join('');
-
-        countryTbody.onclick = (e) => {
-            const row = e.target.closest('tr');
-            if (!row) return;
-            const country = row.dataset.country;
-            if (!country) return;
-            DrilldownManager.showEventsForCountry(country);
-        };
-
-        siteTbody.onclick = (e) => {
-            const row = e.target.closest('tr');
-            if (!row) return;
-            const site = row.dataset.site;
-            if (!site) return;
-            DrilldownManager.showEventsForSite(site);
-        };
-
-        typeTbody.onclick = (e) => {
-            const row = e.target.closest('tr');
-            if (!row) return;
-            const type = row.dataset.type;
-            if (!type) return;
-            DrilldownManager.showEventsForType(type);
-        };
-    },
-
-    renderCharts() {
-        if (DashboardState.currentData.length === 0) {
-            ['chartCountries', 'chartSites', 'chartTypes', 'chartDomains'].forEach(id => {
-                const c = document.getElementById(id);
-                if (c) {
-                    c.innerHTML = `
-                        <div class="empty-state">
-                            <strong>Keine Daten</strong>
-                            <span>Bitte laden Sie Daten oder ändern Sie die Filter.</span>
-                        </div>`;
-                }
-            });
-            ChartManager.destroyAll();
-            return;
-        }
-
-        const countries = Utils.groupAndCount(DashboardState.currentData, row =>
-            DashboardState.headerMap.country ? row[DashboardState.headerMap.country] : '');
-        const sites = Utils.groupAndCount(DashboardState.currentData, row =>
-            DashboardState.headerMap.site ? row[DashboardState.headerMap.site] : '');
-        const types = Utils.groupAndCount(DashboardState.currentData, row =>
-            DashboardState.headerMap.type ? row[DashboardState.headerMap.type] : '');
-
-        ChartManager.create('chartCountries', countries, 'bar');
-        ChartManager.create('chartSites', sites, 'bar');
-        ChartManager.create('chartTypes', types, 'pie');
-
-        const domainCounts = { Security: 0, FM: 0, SHE: 0, Other: 0 };
-        DashboardState.currentData.forEach(row => {
-            const domain = Utils.classifyCategory(row, DashboardState.headerMap);
-            domainCounts[domain] = (domainCounts[domain] || 0) + 1;
-        });
-
-        const domainData = Object.keys(domainCounts)
-            .map(domain => ({ key: domain, count: domainCounts[domain] }))
-            .filter(d => d.count > 0);
-
-        ChartManager.create('chartDomains', domainData, 'pie');
-    },
-
-    runAnalytics() {
-        if (DashboardState.currentData.length === 0) {
-            this.clearAnalytics();
-            return;
-        }
-
-        const analytics = new SecurityAnalytics(DashboardState.currentData, DashboardState.headerMap);
-        analytics.analyze();
-    },
-
-    clearAnalytics() {
-        ['riskAssessment', 'patternDetection', 'smartRecommendations', 'trendForecast'].forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.innerHTML = '<div class="loading">Keine Daten für Analyse verfügbar</div>';
-            }
-        });
-    }
-};
-
-// =============================================
-// DATA MANAGER
-// =============================================
-const DataManager = {
-    loadTestData() {
-        console.log('📊 Loading test data...');
-
-        const parsed = Utils.parseCSV(TestData.csv);
-        DashboardState.allData = parsed.rows;
-        DashboardState.headerMap = Utils.createHeaderMap(parsed.headers);
-        DashboardState.currentData = DashboardState.allData;
-
-        RiskConfigManager.render();
-        this.updateUI('testdata');
-        RenderManager.renderAll();
-
-        console.log(`✅ Test data loaded: {DashboardState.allData.length} records`);
-        UI.showToast('Testdaten wurden geladen (Demo-Modus).', 'info');
-    },
-
-    async loadCSVFile(file) {
-        console.log(`📁 Loading CSV file: {file.name}`);
-
-        try {
-            const text = await file.text();
-            const parsed = Utils.parseCSV(text);
-
-            if (parsed.rows.length === 0) {
-                throw new Error('CSV-Datei enthält keine gültigen Daten');
-            }
-
-            DashboardState.allData = parsed.rows;
-            DashboardState.headerMap = Utils.createHeaderMap(parsed.headers);
-            DashboardState.currentData = DashboardState.allData;
-
-            RiskConfigManager.render();
-            this.updateUI('csv', file.name);
-            RenderManager.renderAll();
-
-            console.log(`✅ CSV file loaded: {DashboardState.allData.length} records`);
-            UI.showToast(`CSV-Datei "${file.name}" geladen.`, 'success');
-
-            if (!DashboardState.headerMap.country ||
-                !DashboardState.headerMap.site ||
-                !DashboardState.headerMap.type) {
-                UI.showToast(
-                    'Hinweis: Einige erwartete Spalten (Land/Liegenschaft/Ereignisart) wurden nicht erkannt. Auswertungen können unvollständig sein.',
-                    'info',
-                    8000
-                );
-            }
-
-        } catch (error) {
-            console.error('CSV loading error:', error);
-            const status = document.getElementById('fileStatus');
-            status.textContent = `Fehler beim Lesen der Datei: {error.message}`;
-            status.className = 'status error';
-            UI.showToast('Fehler beim Laden der CSV-Datei: ' + error.message, 'error');
-        }
-    },
-
-    updateUI(mode, filename = '') {
-        document.getElementById('recordCount').textContent = DashboardState.allData.length;
-
-        const modeIndicator = document.getElementById('modeIndicator');
-        const fileStatus = document.getElementById('fileStatus');
-
-        if (mode === 'testdata') {
-            modeIndicator.textContent = 'Modus: Testdaten (Demo)';
-            fileStatus.textContent = 'Testdaten sind geladen (Demo-Modus).';
-            fileStatus.className = 'status';
-        } else if (mode === 'csv') {
-            modeIndicator.textContent = 'Modus: CSV-Datei';
-            fileStatus.textContent = `Datei "${filename}" geladen. Datensätze: {DashboardState.allData.length}.`;
-            fileStatus.className = 'status';
-        } else {
-            modeIndicator.textContent = 'Modus: Keine Daten';
-            fileStatus.textContent = 'Keine Datei geladen.';
-            fileStatus.className = 'status';
-        }
-    }
-};
-
-// =============================================
-// APPLICATION INITIALIZATION
-// =============================================
-const Dashboard = {
-    init() {
-        console.log('🚀 Initializing Security Dashboard...');
-
-        ThemeManager.init();
-        RiskConfigManager.loadFromStorage();
-        this.setupEventListeners();
-        this.initializeUI();
-
-        console.log('✅ Dashboard initialized successfully!');
-    },
-
-    setupEventListeners() {
-        document.getElementById('loadTestData').addEventListener('click', () => {
-            DataManager.loadTestData();
-        });
-
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) DataManager.loadCSVFile(file);
-        });
-
-        document.getElementById('filterCountry').addEventListener('change', FilterManager.apply.bind(FilterManager));
-        document.getElementById('filterSite').addEventListener('change', FilterManager.apply.bind(FilterManager));
-        document.getElementById('filterType').addEventListener('change', FilterManager.apply.bind(FilterManager));
-        document.getElementById('resetFilters').addEventListener('click', FilterManager.reset.bind(FilterManager));
-
-        document.getElementById('exportCSV').addEventListener('click', () => {
-            // hier ggf. deine ExportManager.toCSV() einhängen
-        });
-        document.getElementById('exportPDF').addEventListener('click', () => {
-            // hier ggf. deine ExportManager.toPDF() einhängen
-        });
-
-        const langSelect = document.getElementById('reportLanguage');
-        if (langSelect) {
-            langSelect.addEventListener('change', (e) => {
-                const lang = e.target.value || 'de';
-                i18n.set(lang);
-            });
-            i18n.set(langSelect.value || 'de');
-        }
-
-        document.querySelectorAll('.card-grid .card').forEach(card => {
-            card.addEventListener('click', () => {
-                const kpi = card.dataset.kpi;
-                if (!kpi) return;
-                switch (kpi) {
-                    case 'total':
-                        DrilldownManager.showTotalEvents();
-                        break;
-                    case 'countries':
-                        DrilldownManager.showCountriesOverview();
-                        break;
-                    case 'sites':
-                        DrilldownManager.showSitesOverview();
-                        break;
-                    case 'types':
-                        DrilldownManager.showTypesOverview();
-                        break;
-                }
-            });
-        });
-
-        const modal = document.getElementById('drilldownModal');
-        if (modal) {
-            const backdrop = modal.querySelector('.modal-backdrop');
-            const closeBtn = document.getElementById('drilldownClose');
-
-            backdrop && backdrop.addEventListener('click', () => DrilldownManager.hideModal());
-            closeBtn && closeBtn.addEventListener('click', () => DrilldownManager.hideModal());
-        }
-
-        console.log('🔗 Event listeners attached');
-    },
-
-    initializeUI() {
-        FilterManager.updateStatus();
-        RenderManager.clearAnalytics();
-        console.log('🎨 UI initialized');
-    }
-};
-
-// =============================================
-// START THE APPLICATION
-// =============================================
-document.addEventListener('DOMContentLoaded', () => {
-    Dashboard.init();
-});
-
-window.addEventListener('error', (e) => {
-    console.error('Dashboard Error:', e.error || e.message);
-    UI.showToast('Unerwarteter Fehler im Dashboard. Details in der Konsole.', 'error', 6000);
-});
-
-window.Dashboard = Dashboard;
-window.DashboardState = DashboardState;
-window.i18n = i18n;
+})();
