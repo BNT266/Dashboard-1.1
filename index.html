@@ -3,604 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Dashboard - Test</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --bg: #f5f5f5; --bg2: #ffffff; --text: #333; --accent: #00a37a; --border: #ddd;
-        }
-        [data-theme="dark"] {
-            --bg: #1a1a2e; --bg2: #16213e; --text: #f1f1f1; --accent: #10b981; --border: #333;
-        }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: all 0.3s; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        h1 { color: var(--accent); margin-bottom: 20px; }
-        .top-bar { display: flex; gap: 20px; align-items: center; margin-bottom: 20px; padding: 15px; background: var(--bg2); border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; }
-        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-        .theme-btn { padding: 8px 16px; }
-        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: var(--bg2); padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
-        .card-title { font-size: 12px; text-transform: uppercase; color: #888; margin-bottom: 5px; }
-        .card-value { font-size: 28px; font-weight: bold; color: var(--accent); }
-        .panel { background: var(--bg2); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .panel h2 { margin-bottom: 15px; font-size: 18px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { background: var(--bg); font-weight: 600; }
-        .chart-container { height: 250px; position: relative; }
-        .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg2); color: var(--text); }
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; }
-        .toast { padding: 12px 20px; background: var(--bg2); border-left: 4px solid var(--accent); border-radius: 6px; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .toast-success { border-left-color: #10b981; }
-        .toast-error { border-left-color: #ef4444; }
-        .status { font-size: 13px; color: #888; margin-top: 10px; }
-        .insight-card { background: var(--bg); padding: 15px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid var(--accent); }
-        .insight-title { font-weight: 600; margin-bottom: 5px; }
-        .insight-value { color: var(--accent); font-size: 18px; }
-        .file-input { margin-right: 10px; }
-        .debug-panel { position: fixed; bottom: 10px; left: 10px; background: #1a1a2e; color: #0f0; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; max-width: 350px; max-height: 200px; overflow-y: auto; z-index: 9999; border: 1px solid #0f0; }
-        .debug-panel .error { color: #ff4444; }
-        .debug-panel .success { color: #44ff44; }
-    </style>
+    <title>Security Event Dashboard</title>
+    <link rel="stylesheet" href="src/css/styles.css">
 </head>
 <body>
 
-<!-- Debug Panel -->
-<div class="debug-panel" id="debugPanel">
-    <strong>🔧 DEBUG</strong><br>
-    <div id="debugLog"></div>
-</div>
+<div id="toastContainer" class="toast-container"></div>
 
-<!-- Toast Container -->
-<div class="toast-container" id="toastContainer"></div>
-
-<div class="container">
-    <h1>🛡️ Security Event Dashboard</h1>
-
-    <!-- Top Bar -->
-    <div class="top-bar">
-        <input type="file" id="fileInput" accept=".csv" class="file-input">
-        <button class="btn btn-primary" id="loadTestData">📊 Testdaten laden</button>
-        <button class="btn btn-secondary" id="exportCSV">📄 CSV Export</button>
-        <button class="btn btn-secondary theme-btn" id="themeToggle">🌓 Theme</button>
-        <div id="statusText" class="status">Keine Daten geladen</div>
-    </div>
-
-    <!-- Filter -->
-    <div class="panel">
-        <h2>🔍 Filter</h2>
-        <div class="filters">
-            <select id="filterCountry"><option value="__ALL__">Alle Länder</option></select>
-            <select id="filterSite"><option value="__ALL__">Alle Liegenschaften</option></select>
-            <select id="filterType"><option value="__ALL__">Alle Ereignisarten</option></select>
-            <button class="btn btn-secondary" id="resetFilters">Filter zurücksetzen</button>
+<div class="app-shell">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="brand">SECURITY<span>DASH</span></div>
+            <div class="subtitle">Security Events Management</div>
         </div>
-        <div id="filterStatus" class="status"></div>
-    </div>
 
-    <!-- KPI Cards -->
-    <div class="cards">
-        <div class="card">
-            <div class="card-title">Ereignisse Gesamt</div>
-            <div class="card-value" id="kpiTotal">0</div>
-        </div>
-        <div class="card">
-            <div class="card-title">Länder</div>
-            <div class="card-value" id="kpiCountries">0</div>
-        </div>
-        <div class="card">
-            <div class="card-title">Liegenschaften</div>
-            <div class="card-value" id="kpiSites">0</div>
-        </div>
-        <div class="card">
-            <div class="card-title">Ereignisarten</div>
-            <div class="card-value" id="kpiTypes">0</div>
-        </div>
-    </div>
-
-    <!-- Analytics -->
-    <div class="panel">
-        <h2>🧠 Smart Analytics</h2>
-        <div class="grid">
-            <div class="insight-card">
-                <div class="insight-title">⚠️ Risiko-Level</div>
-                <div class="insight-value" id="riskLevel">-</div>
-                <div id="riskDetails" class="status"></div>
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Datenquelle</div>
+            <div class="file-input-wrapper">
+                <label>
+                    CSV-Datei auswählen
+                    <input type="file" id="fileInput" accept=".csv">
+                </label>
             </div>
-            <div class="insight-card">
-                <div class="insight-title">📊 Top Bereich</div>
-                <div class="insight-value" id="topDomain">-</div>
-                <div id="domainDetails" class="status"></div>
+            <div id="fileStatus" class="status">Keine Datei geladen</div>
+            <button type="button" class="btn btn-outline" id="loadTestData">Testdaten laden</button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Filter</div>
+            <div class="filter-group">
+                <label>Land</label>
+                <select id="filterCountry"><option value="__ALL__">Alle Länder</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Liegenschaft</label>
+                <select id="filterSite"><option value="__ALL__">Alle Liegenschaften</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Ereignisart</label>
+                <select id="filterType"><option value="__ALL__">Alle Ereignisarten</option></select>
+            </div>
+            <button type="button" class="btn btn-secondary" id="resetFilters">Filter zurücksetzen</button>
+            <div id="filterStatus" class="status"></div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Export</div>
+            <button type="button" class="btn btn-secondary" id="exportCSV">CSV exportieren</button>
+            <button type="button" class="btn btn-primary" id="exportPDF">PDF Report</button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Risiko-Konfiguration</div>
+            <div id="riskConfig" class="risk-config"></div>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+        <div class="top-bar">
+            <button type="button" id="themeToggle" class="theme-toggle">🌓 Theme</button>
+            <div class="language-select">
+                <label>Sprache:</label>
+                <select id="reportLanguage">
+                    <option value="de">Deutsch</option>
+                    <option value="en">English</option>
+                </select>
             </div>
         </div>
-    </div>
 
-    <!-- Content Grid -->
-    <div class="grid">
-        <!-- Tables -->
-        <div class="panel">
-            <h2>📋 Nach Land</h2>
-            <table id="tableCountry">
-                <thead><tr><th>Land</th><th>Anzahl</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-        <div class="panel">
-            <h2>📋 Nach Ereignisart</h2>
-            <table id="tableType">
-                <thead><tr><th>Ereignisart</th><th>Anzahl</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-    </div>
+        <header class="main-header">
+            <div>
+                <h1>Security Events Overview</h1>
+                <p class="subtitle">Echtzeit-Übersicht über gemeldete Ereignisse</p>
+            </div>
+            <div class="header-right">
+                <span class="pill" id="recordCount">0 Datensätze</span>
+                <span class="pill pill-secondary" id="modeIndicator">Keine Daten</span>
+            </div>
+        </header>
 
-    <!-- Charts -->
-    <div class="grid">
-        <div class="panel">
-            <h2>📈 Länder Chart</h2>
-            <div class="chart-container"><canvas id="chartCountry"></canvas></div>
+        <!-- KPI Cards -->
+        <section class="card-grid">
+            <div class="card">
+                <div class="card-title">Ereignisse Gesamt</div>
+                <div class="card-value" id="kpiTotal">0</div>
+                <div class="card-sub" id="kpiFiltered">0 nach Filter</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Länder</div>
+                <div class="card-value" id="kpiCountries">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Liegenschaften</div>
+                <div class="card-value" id="kpiSites">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Ereignisarten</div>
+                <div class="card-value" id="kpiTypes">0</div>
+            </div>
+        </section>
+
+        <!-- Analytics Panel -->
+        <section class="analytics-panel">
+            <div class="panel-header">
+                <h2>🧠 Smart Analytics & Insights</h2>
+                <p>KI-basierte Muster-Erkennung und Sicherheitsanalyse</p>
+            </div>
+            <div class="insights-grid">
+                <div class="insight-card">
+                    <div class="insight-header">⚠️ Risiko-Assessment</div>
+                    <div id="riskAssessment" class="insight-content">Warte auf Daten...</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-header">🔍 Muster-Erkennung</div>
+                    <div id="patternDetection" class="insight-content">Warte auf Daten...</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-header">💡 Empfehlungen</div>
+                    <div id="recommendations" class="insight-content">Warte auf Daten...</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-header">📈 Trend-Prognose</div>
+                    <div id="trendForecast" class="insight-content">Warte auf Daten...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Content Grid -->
+        <div class="content-grid">
+            <!-- Tables -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Aggregierte Übersicht</h2>
+                </div>
+
+                <h3>Nach Land</h3>
+                <div class="table-wrapper">
+                    <table id="tableCountry">
+                        <thead><tr><th>Land</th><th>Anzahl</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <h3>Nach Liegenschaft</h3>
+                <div class="table-wrapper">
+                    <table id="tableSite">
+                        <thead><tr><th>Liegenschaft</th><th>Land</th><th>Anzahl</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <h3>Nach Ereignisart</h3>
+                <div class="table-wrapper">
+                    <table id="tableType">
+                        <thead><tr><th>Ereignisart</th><th>Anzahl</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Charts -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Visualisierung</h2>
+                </div>
+
+                <h3>Top Länder</h3>
+                <div class="chart-container"><canvas id="chartCountries"></canvas></div>
+
+                <h3>Top Liegenschaften</h3>
+                <div class="chart-container"><canvas id="chartSites"></canvas></div>
+
+                <h3>Ereignisarten</h3>
+                <div class="chart-container"><canvas id="chartTypes"></canvas></div>
+
+                <h3>Bereichsverteilung</h3>
+                <div class="chart-container"><canvas id="chartDomains"></canvas></div>
+            </section>
         </div>
-        <div class="panel">
-            <h2>📈 Ereignisarten Chart</h2>
-            <div class="chart-container"><canvas id="chartType"></canvas></div>
-        </div>
-    </div>
+    </main>
 </div>
 
-<!-- Chart.js -->
+<!-- External Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
-<script>
-// ========================================
-// DEBUG HELPER
-// ========================================
-function debug(msg, type) {
-    type = type || 'info';
-    var log = document.getElementById('debugLog');
-    if (log) {
-        var div = document.createElement('div');
-        div.className = type;
-        div.textContent = msg;
-        log.insertBefore(div, log.firstChild);
-        if (log.children.length > 20) log.removeChild(log.lastChild);
-    }
-    console.log('[' + type.toUpperCase() + ']', msg);
-}
-
-window.onerror = function(msg, url, line) {
-    debug('ERROR: ' + msg + ' (Zeile ' + line + ')', 'error');
-    return false;
-};
-
-debug('Script gestartet', 'success');
-
-// ========================================
-// STATE
-// ========================================
-var state = {
-    allData: [],
-    currentData: [],
-    headerMap: {},
-    charts: {}
-};
-
-var riskWeights = {
-    'Diebstahl': 9, 'Verdaechtige Person': 7, 'Zutrittsverletzung': 6,
-    'Alarmanlage ausgeloest': 5, 'Vandalismus': 8, 'Einbruch': 10
-};
-
-// ========================================
-// TEST DATA
-// ========================================
-var testCSV = [
-    'Land;Liegenschaft;Ereignisart;Datum',
-    'Deutschland;Mainz Campus;Zutrittsverletzung;2025-01-03',
-    'Deutschland;Mainz Campus;Zutrittsverletzung;2025-01-04',
-    'Deutschland;Mainz Campus;Alarmanlage ausgeloest;2025-01-05',
-    'Deutschland;Berlin Research;Zutrittsverletzung;2025-02-01',
-    'Deutschland;Berlin Research;Verdaechtige Person;2025-02-02',
-    'Deutschland;Muenchen Warehouse;Diebstahl;2025-03-01',
-    'Deutschland;Muenchen Warehouse;Diebstahl;2025-03-02',
-    'USA;Cambridge Lab;Zutrittsverletzung;2025-01-10',
-    'USA;Cambridge Lab;Verdaechtige Person;2025-01-12',
-    'USA;Cambridge Lab;Alarmanlage ausgeloest;2025-01-15',
-    'USA;San Diego Office;Verdaechtige Person;2025-02-10',
-    'USA;San Diego Office;Diebstahl;2025-02-14',
-    'UK;London HQ;Zutrittsverletzung;2025-01-07',
-    'UK;London HQ;Zutrittsverletzung;2025-01-09',
-    'UK;London HQ;Verdaechtige Person;2025-01-11',
-    'UK;Reading Plant;Diebstahl;2025-03-03',
-    'UK;Reading Plant;Diebstahl;2025-03-06',
-    'Schweiz;Basel Site;Verdaechtige Person;2025-02-03',
-    'Schweiz;Basel Site;Alarmanlage ausgeloest;2025-02-06',
-    'Belgien;Bruessel Office;Zutrittsverletzung;2025-01-20',
-    'Belgien;Bruessel Office;Diebstahl;2025-01-22'
-].join('\n');
-
-// ========================================
-// UTILS
-// ========================================
-function parseCSV(text) {
-    var lines = text.split(/\r?\n/).filter(function(l) { return l.trim(); });
-    if (!lines.length) return { headers: [], rows: [] };
-    
-    var delim = lines[0].indexOf(';') >= 0 ? ';' : ',';
-    var headers = lines[0].split(delim).map(function(h) { return h.trim(); });
-    var rows = [];
-    
-    for (var i = 1; i < lines.length; i++) {
-        var cells = lines[i].split(delim);
-        var row = {};
-        for (var j = 0; j < headers.length; j++) {
-            row[headers[j]] = (cells[j] || '').trim();
-        }
-        rows.push(row);
-    }
-    return { headers: headers, rows: rows };
-}
-
-function createHeaderMap(headers) {
-    var map = {};
-    headers.forEach(function(h) {
-        var lower = h.toLowerCase();
-        if (lower.indexOf('land') >= 0 || lower.indexOf('country') >= 0) map.country = h;
-        if (lower.indexOf('liegenschaft') >= 0 || lower.indexOf('site') >= 0) map.site = h;
-        if (lower.indexOf('ereignis') >= 0 || lower.indexOf('typ') >= 0) map.type = h;
-    });
-    return map;
-}
-
-function groupAndCount(data, keyFn) {
-    var map = {};
-    data.forEach(function(row) {
-        var key = keyFn(row);
-        if (key) map[key] = (map[key] || 0) + 1;
-    });
-    var result = [];
-    for (var k in map) result.push({ key: k, count: map[k] });
-    result.sort(function(a, b) { return b.count - a.count; });
-    return result;
-}
-
-function showToast(msg, type) {
-    type = type || 'info';
-    var container = document.getElementById('toastContainer');
-    var div = document.createElement('div');
-    div.className = 'toast toast-' + type;
-    div.textContent = msg;
-    container.appendChild(div);
-    setTimeout(function() { div.remove(); }, 4000);
-}
-
-// ========================================
-// DATA LOADING
-// ========================================
-function loadTestData() {
-    debug('Lade Testdaten...', 'info');
-    
-    try {
-        var parsed = parseCSV(testCSV);
-        state.allData = parsed.rows;
-        state.headerMap = createHeaderMap(parsed.headers);
-        state.currentData = state.allData.slice();
-        
-        debug('Testdaten geladen: ' + state.allData.length + ' Zeilen', 'success');
-        showToast('Testdaten geladen (' + state.allData.length + ' Events)', 'success');
-        
-        document.getElementById('statusText').textContent = 'Testdaten: ' + state.allData.length + ' Events';
-        
-        renderAll();
-    } catch (e) {
-        debug('FEHLER: ' + e.message, 'error');
-        showToast('Fehler: ' + e.message, 'error');
-    }
-}
-
-function loadCSVFile(file) {
-    debug('Lade CSV: ' + file.name, 'info');
-    
-    var reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            var parsed = parseCSV(e.target.result);
-            state.allData = parsed.rows;
-            state.headerMap = createHeaderMap(parsed.headers);
-            state.currentData = state.allData.slice();
-            
-            debug('CSV geladen: ' + state.allData.length + ' Zeilen', 'success');
-            showToast(file.name + ' geladen', 'success');
-            
-            document.getElementById('statusText').textContent = file.name + ': ' + state.allData.length + ' Events';
-            
-            renderAll();
-        } catch (err) {
-            debug('CSV Fehler: ' + err.message, 'error');
-            showToast('CSV Fehler', 'error');
-        }
-    };
-    reader.readAsText(file);
-}
-
-// ========================================
-// FILTERING
-// ========================================
-function applyFilters() {
-    var country = document.getElementById('filterCountry').value;
-    var site = document.getElementById('filterSite').value;
-    var type = document.getElementById('filterType').value;
-    
-    state.currentData = state.allData.filter(function(row) {
-        var rc = state.headerMap.country ? row[state.headerMap.country] : '';
-        var rs = state.headerMap.site ? row[state.headerMap.site] : '';
-        var rt = state.headerMap.type ? row[state.headerMap.type] : '';
-        
-        if (country !== '__ALL__' && rc !== country) return false;
-        if (site !== '__ALL__' && rs !== site) return false;
-        if (type !== '__ALL__' && rt !== type) return false;
-        return true;
-    });
-    
-    document.getElementById('filterStatus').textContent = 
-        'Zeige ' + state.currentData.length + ' von ' + state.allData.length;
-    
-    renderAll();
-}
-
-function resetFilters() {
-    document.getElementById('filterCountry').value = '__ALL__';
-    document.getElementById('filterSite').value = '__ALL__';
-    document.getElementById('filterType').value = '__ALL__';
-    applyFilters();
-    showToast('Filter zurückgesetzt', 'success');
-}
-
-function updateFilterOptions() {
-    var countries = {}, sites = {}, types = {};
-    
-    state.allData.forEach(function(r) {
-        if (state.headerMap.country && r[state.headerMap.country]) countries[r[state.headerMap.country]] = true;
-        if (state.headerMap.site && r[state.headerMap.site]) sites[r[state.headerMap.site]] = true;
-        if (state.headerMap.type && r[state.headerMap.type]) types[r[state.headerMap.type]] = true;
-    });
-    
-    fillSelect('filterCountry', Object.keys(countries).sort(), 'Alle Länder');
-    fillSelect('filterSite', Object.keys(sites).sort(), 'Alle Liegenschaften');
-    fillSelect('filterType', Object.keys(types).sort(), 'Alle Ereignisarten');
-}
-
-function fillSelect(id, values, placeholder) {
-    var select = document.getElementById(id);
-    var html = '<option value="__ALL__">' + placeholder + '</option>';
-    values.forEach(function(v) {
-        html += '<option value="' + v + '">' + v + '</option>';
-    });
-    select.innerHTML = html;
-}
-
-// ========================================
-// RENDERING
-// ========================================
-function renderAll() {
-    debug('Rendering...', 'info');
-    renderKPIs();
-    updateFilterOptions();
-    renderTables();
-    renderCharts();
-    renderAnalytics();
-}
-
-function renderKPIs() {
-    var countries = {}, sites = {}, types = {};
-    
-    state.allData.forEach(function(r) {
-        if (state.headerMap.country && r[state.headerMap.country]) countries[r[state.headerMap.country]] = true;
-        if (state.headerMap.site && r[state.headerMap.site]) sites[r[state.headerMap.site]] = true;
-        if (state.headerMap.type && r[state.headerMap.type]) types[r[state.headerMap.type]] = true;
-    });
-    
-    document.getElementById('kpiTotal').textContent = state.allData.length;
-    document.getElementById('kpiCountries').textContent = Object.keys(countries).length;
-    document.getElementById('kpiSites').textContent = Object.keys(sites).length;
-    document.getElementById('kpiTypes').textContent = Object.keys(types).length;
-}
-
-function renderTables() {
-    var byCountry = groupAndCount(state.currentData, function(r) {
-        return state.headerMap.country ? r[state.headerMap.country] : '';
-    });
-    
-    var byType = groupAndCount(state.currentData, function(r) {
-        return state.headerMap.type ? r[state.headerMap.type] : '';
-    });
-    
-    var tbody1 = document.querySelector('#tableCountry tbody');
-    tbody1.innerHTML = byCountry.map(function(item) {
-        return '<tr><td>' + item.key + '</td><td>' + item.count + '</td></tr>';
-    }).join('');
-    
-    var tbody2 = document.querySelector('#tableType tbody');
-    tbody2.innerHTML = byType.map(function(item) {
-        return '<tr><td>' + item.key + '</td><td>' + item.count + '</td></tr>';
-    }).join('');
-}
-
-function renderCharts() {
-    if (typeof Chart === 'undefined') {
-        debug('Chart.js nicht geladen!', 'error');
-        return;
-    }
-    
-    var colors = ['#00a37a', '#006b4e', '#4caf50', '#8bc34a', '#cddc39', '#ffc107'];
-    
-    // Country Chart
-    var byCountry = groupAndCount(state.currentData, function(r) {
-        return state.headerMap.country ? r[state.headerMap.country] : '';
-    });
-    
-    if (state.charts.country) state.charts.country.destroy();
-    var ctx1 = document.getElementById('chartCountry').getContext('2d');
-    state.charts.country = new Chart(ctx1, {
-        type: 'bar',
-        data: {
-            labels: byCountry.slice(0, 6).map(function(d) { return d.key; }),
-            datasets: [{
-                label: 'Ereignisse',
-                data: byCountry.slice(0, 6).map(function(d) { return d.count; }),
-                backgroundColor: colors
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-    
-    // Type Chart
-    var byType = groupAndCount(state.currentData, function(r) {
-        return state.headerMap.type ? r[state.headerMap.type] : '';
-    });
-    
-    if (state.charts.type) state.charts.type.destroy();
-    var ctx2 = document.getElementById('chartType').getContext('2d');
-    state.charts.type = new Chart(ctx2, {
-        type: 'pie',
-        data: {
-            labels: byType.slice(0, 6).map(function(d) { return d.key; }),
-            datasets: [{
-                data: byType.slice(0, 6).map(function(d) { return d.count; }),
-                backgroundColor: colors
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-    
-    debug('Charts gerendert', 'success');
-}
-
-function renderAnalytics() {
-    var byType = groupAndCount(state.currentData, function(r) {
-        return state.headerMap.type ? r[state.headerMap.type] : '';
-    });
-    
-    // Risk Calculation
-    var total = 0, max = 0, high = 0;
-    byType.forEach(function(e) {
-        var w = riskWeights[e.key] || 3;
-        total += e.count * w;
-        max += e.count * 10;
-        if (w >= 8) high += e.count;
-    });
-    
-    var score = Math.round((total / Math.max(max, 1)) * 100);
-    var level = score >= 70 ? 'HOCH' : score >= 40 ? 'MITTEL' : 'NIEDRIG';
-    
-    document.getElementById('riskLevel').textContent = level + ' (' + score + '%)';
-    document.getElementById('riskDetails').textContent = high + ' kritische Events';
-    
-    // Domain Analysis
-    var domains = { Security: 0, FM: 0, SHE: 0, Other: 0 };
-    state.currentData.forEach(function(r) {
-        var text = (state.headerMap.type && r[state.headerMap.type] || '').toLowerCase();
-        if (text.indexOf('diebstahl') >= 0 || text.indexOf('zutritt') >= 0 || text.indexOf('alarm') >= 0 || text.indexOf('verdaechtig') >= 0) {
-            domains.Security++;
-        } else if (text.indexOf('brand') >= 0 || text.indexOf('unfall') >= 0) {
-            domains.SHE++;
-        } else {
-            domains.Other++;
-        }
-    });
-    
-    var topDomain = 'Security';
-    var topCount = domains.Security;
-    for (var d in domains) {
-        if (domains[d] > topCount) {
-            topDomain = d;
-            topCount = domains[d];
-        }
-    }
-    
-    document.getElementById('topDomain').textContent = topDomain;
-    document.getElementById('domainDetails').textContent = topCount + ' Events (' + Math.round(topCount / state.currentData.length * 100) + '%)';
-}
-
-// ========================================
-// EXPORT
-// ========================================
-function exportCSV() {
-    if (!state.currentData.length) {
-        showToast('Keine Daten', 'error');
-        return;
-    }
-    
-    var headers = Object.keys(state.currentData[0]);
-    var csv = headers.join(',') + '\n';
-    
-    state.currentData.forEach(function(row) {
-        var values = headers.map(function(h) {
-            return '"' + (row[h] || '').replace(/"/g, '""') + '"';
-        });
-        csv += values.join(',') + '\n';
-    });
-    
-    var blob = new Blob([csv], { type: 'text/csv' });
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'security-export.csv';
-    link.click();
-    
-    showToast('CSV exportiert', 'success');
-}
-
-// ========================================
-// THEME
-// ========================================
-function toggleTheme() {
-    var current = document.documentElement.getAttribute('data-theme');
-    var newTheme = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    debug('Theme: ' + newTheme, 'success');
-}
-
-// ========================================
-// INIT
-// ========================================
-function init() {
-    debug('Initialisiere Dashboard...', 'info');
-    
-    // Theme laden
-    var savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    
-    // Event Listeners
-    document.getElementById('loadTestData').addEventListener('click', loadTestData);
-    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
-    document.getElementById('exportCSV').addEventListener('click', exportCSV);
-    document.getElementById('resetFilters').addEventListener('click', resetFilters);
-    
-    document.getElementById('filterCountry').addEventListener('change', applyFilters);
-    document.getElementById('filterSite').addEventListener('change', applyFilters);
-    document.getElementById('filterType').addEventListener('change', applyFilters);
-    
-    document.getElementById('fileInput').addEventListener('change', function(e) {
-        var file = e.target.files && e.target.files[0];
-        if (file) loadCSVFile(file);
-    });
-    
-    debug('Dashboard bereit!', 'success');
-    showToast('Dashboard bereit - klicke "Testdaten laden"', 'success');
-}
-
-// Start
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
-</script>
+<!-- App -->
+<script src="src/js/app.js"></script>
 
 </body>
 </html>
